@@ -1,0 +1,1038 @@
+[
+  {
+    "model": "settings.studyfield",
+    "pk": 1,
+    "fields": {
+      "title": "مهندسی برق"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 2,
+    "fields": {
+      "title": "مهندسی کامپیوتر"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 3,
+    "fields": {
+      "title": "مهندسی مکانیک"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 4,
+    "fields": {
+      "title": "مهندسی عمران"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 5,
+    "fields": {
+      "title": "مهندسی معماری"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 6,
+    "fields": {
+      "title": "مهندسی کشتی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 7,
+    "fields": {
+      "title": "مهندسی هوافضا"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 8,
+    "fields": {
+      "title": "مهندسی انرژی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 9,
+    "fields": {
+      "title": "مهندسی شهرسازی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 10,
+    "fields": {
+      "title": "مهندسی فناوری اطلاعات"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 11,
+    "fields": {
+      "title": "مهندسی صنایع"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 12,
+    "fields": {
+      "title": "مهندسی پزشکی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 13,
+    "fields": {
+      "title": "مهندسی نساجی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 14,
+    "fields": {
+      "title": "مهندسی رباتیک"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 15,
+    "fields": {
+      "title": "مهندسی نفت"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 16,
+    "fields": {
+      "title": "مهندسی ایمنی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 17,
+    "fields": {
+      "title": "مهندسی معدن"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 18,
+    "fields": {
+      "title": "مهندسی پلیمر"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 19,
+    "fields": {
+      "title": "مهندسی مواد"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 20,
+    "fields": {
+      "title": "مهندسی مدیریت پروژه"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 21,
+    "fields": {
+      "title": "مهندسی راه‌آهن"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 22,
+    "fields": {
+      "title": "مهندسی کشاورزی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 23,
+    "fields": {
+      "title": "علوم مهندسی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 24,
+    "fields": {
+      "title": "معماری داخلی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 25,
+    "fields": {
+      "title": "کاردان فنی مکانیک"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 26,
+    "fields": {
+      "title": "کاردان فنی عمران"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 27,
+    "fields": {
+      "title": "کاردان فنی برق"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 28,
+    "fields": {
+      "title": "کاردانی هواپیما"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 29,
+    "fields": {
+      "title": "کاردان فنی معدن"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 30,
+    "fields": {
+      "title": "مکاترونیک"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 31,
+    "fields": {
+      "title": "علوم کامپیوتر"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 32,
+    "fields": {
+      "title": "شیمی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 33,
+    "fields": {
+      "title": "حسابداری"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 34,
+    "fields": {
+      "title": "فیزیک"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 35,
+    "fields": {
+      "title": "فیزیک مهندسی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 36,
+    "fields": {
+      "title": "ریاضیات و کاربردها"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 37,
+    "fields": {
+      "title": "کارشناسی چندرسانه‌ای"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 38,
+    "fields": {
+      "title": "مهندسی بازرسی فنی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 39,
+    "fields": {
+      "title": "مهندسی ماشین‌های کشاورزی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 40,
+    "fields": {
+      "title": "هوانوردی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 41,
+    "fields": {
+      "title": "مهندسی مدیریت اجرایی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 42,
+    "fields": {
+      "title": "مهندسی مواد و طراحی صنایع غذایی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 43,
+    "fields": {
+      "title": "مهندسی مکانیک نیروگاه"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 44,
+    "fields": {
+      "title": "خلبانی هلیکوپتر"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 45,
+    "fields": {
+      "title": "مهندسی فرماندهی و کنترل هوایی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 46,
+    "fields": {
+      "title": "مهندسی اپتیک و لیزر"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 47,
+    "fields": {
+      "title": "پزشکی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 48,
+    "fields": {
+      "title": "دندان‌پزشکی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 49,
+    "fields": {
+      "title": "داروسازی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 50,
+    "fields": {
+      "title": "بیوتکنولوژی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 51,
+    "fields": {
+      "title": "دام‌پزشکی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 52,
+    "fields": {
+      "title": "زیست‌شناسی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 53,
+    "fields": {
+      "title": "فیزیوتراپی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 54,
+    "fields": {
+      "title": "اعضای مصنوعی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 55,
+    "fields": {
+      "title": "بهداشت مواد غذایی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 56,
+    "fields": {
+      "title": "مدیریت و کمیسر دریایی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 57,
+    "fields": {
+      "title": "تکنسین پروتزهای دندانی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 58,
+    "fields": {
+      "title": "تکنولوژی مرتع و آبخیزداری"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 59,
+    "fields": {
+      "title": "آرگونومی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 60,
+    "fields": {
+      "title": "اتاق عمل"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 61,
+    "fields": {
+      "title": "هوش‌بری"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 62,
+    "fields": {
+      "title": "بینایی‌سنجی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 63,
+    "fields": {
+      "title": "شنوایی‌شناسی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 64,
+    "fields": {
+      "title": "علوم آزمایشگاهی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 65,
+    "fields": {
+      "title": "علوم آزمایشگاهی دام‌پزشکی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 66,
+    "fields": {
+      "title": "مامایی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 67,
+    "fields": {
+      "title": "علوم تغذیه"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 68,
+    "fields": {
+      "title": "علوم و صنایع غذایی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 69,
+    "fields": {
+      "title": "مهندسی بهداشت محیط"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 70,
+    "fields": {
+      "title": "مهندسی فضای سبز"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 71,
+    "fields": {
+      "title": "کارشناسی بهداشت عمومی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 72,
+    "fields": {
+      "title": "مهندسی منابع طبیعی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 73,
+    "fields": {
+      "title": "کاردانی دام‌پزشکی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 74,
+    "fields": {
+      "title": "پرستاری"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 75,
+    "fields": {
+      "title": "مدارک پزشکی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 76,
+    "fields": {
+      "title": "زیست‌شناسی سلولی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 77,
+    "fields": {
+      "title": "مهندسی بهداشت حرفه‌ای"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 78,
+    "fields": {
+      "title": "مهندسی تولیدات گیاهی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 79,
+    "fields": {
+      "title": "فناوری اطلاعات سلامت"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 80,
+    "fields": {
+      "title": "علوم مهندسی زیست‌محیطی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 81,
+    "fields": {
+      "title": "دبیری شیمی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 82,
+    "fields": {
+      "title": "گفتاردرمانی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 83,
+    "fields": {
+      "title": "تکنولوژی تولیدات دامی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 84,
+    "fields": {
+      "title": "فوریت‌های پزشکی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 85,
+    "fields": {
+      "title": "شیلات"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 86,
+    "fields": {
+      "title": "زراعت و اصلاح نباتات"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 87,
+    "fields": {
+      "title": "علوم دامی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 88,
+    "fields": {
+      "title": "اقیانوس‌شناسی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 89,
+    "fields": {
+      "title": "زمین‌شناسی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 90,
+    "fields": {
+      "title": "کاردرمانی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 91,
+    "fields": {
+      "title": "رادیولوژی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 92,
+    "fields": {
+      "title": "ایمونولوژی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 93,
+    "fields": {
+      "title": "پزشکی هسته‌ای"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 94,
+    "fields": {
+      "title": "ترویج و آموزش کشاورزی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 95,
+    "fields": {
+      "title": "مهندسی چوب"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 96,
+    "fields": {
+      "title": "جنگل‌داری"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 97,
+    "fields": {
+      "title": "پدافند جنگ‌های میکروبی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 98,
+    "fields": {
+      "title": "پرورش زنبور عسل"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 99,
+    "fields": {
+      "title": "بهره‌برداری گیاهان دارویی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 100,
+    "fields": {
+      "title": "حقوق"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 101,
+    "fields": {
+      "title": "کارشناسی ارشد الهیات"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 102,
+    "fields": {
+      "title": "مطالعات ارتباطی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 103,
+    "fields": {
+      "title": "علوم اقتصادی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 104,
+    "fields": {
+      "title": "مدیریت"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 105,
+    "fields": {
+      "title": "علوم سیاسی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 106,
+    "fields": {
+      "title": "علوم قضایی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 107,
+    "fields": {
+      "title": "تربیت بدنی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 108,
+    "fields": {
+      "title": "علوم اجتماعی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 109,
+    "fields": {
+      "title": "تفسیر قرآن مجید"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 110,
+    "fields": {
+      "title": "روان‌شناسی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 111,
+    "fields": {
+      "title": "زبان و ادبیات فارسی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 112,
+    "fields": {
+      "title": "زبان و ادبیات عربی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 113,
+    "fields": {
+      "title": "روابط عمومی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 114,
+    "fields": {
+      "title": "مطالعات خانواده"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 115,
+    "fields": {
+      "title": "کتابداری"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 116,
+    "fields": {
+      "title": "مددکاری اجتماعی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 117,
+    "fields": {
+      "title": "راهنمایی و مشاوره"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 118,
+    "fields": {
+      "title": "ادبیات داستانی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 119,
+    "fields": {
+      "title": "ژئومورفولوژی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 120,
+    "fields": {
+      "title": "جغرافیا"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 121,
+    "fields": {
+      "title": "مدیریت هتل‌داری"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 122,
+    "fields": {
+      "title": "علوم تربیتی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 123,
+    "fields": {
+      "title": "مدیریت جهان‌گردی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 124,
+    "fields": {
+      "title": "دبیری جغرافیا"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 125,
+    "fields": {
+      "title": "امور گمرکی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 126,
+    "fields": {
+      "title": "تاریخ"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 127,
+    "fields": {
+      "title": "علوم حدیث"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 128,
+    "fields": {
+      "title": "فلسفه"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 129,
+    "fields": {
+      "title": "پرورش کودکان پیش‌دبستانی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 130,
+    "fields": {
+      "title": "دبیری زبان و ادبیات عربی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 131,
+    "fields": {
+      "title": "مدیریت - بازرگانی دریایی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 132,
+    "fields": {
+      "title": "علوم ارتباطات اجتماعی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 133,
+    "fields": {
+      "title": "الهیات و معارف اسلامی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 134,
+    "fields": {
+      "title": "سینما"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 135,
+    "fields": {
+      "title": "عکاسی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 136,
+    "fields": {
+      "title": "چاپ"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 137,
+    "fields": {
+      "title": "کارشناسی فرش"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 138,
+    "fields": {
+      "title": "گرافیک"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 139,
+    "fields": {
+      "title": "صنایع دستی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 140,
+    "fields": {
+      "title": "موزه‌داری"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 141,
+    "fields": {
+      "title": "باستان‌شناسی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 142,
+    "fields": {
+      "title": "مرمت آثار تاریخی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 143,
+    "fields": {
+      "title": "تلویزیون و هنرهای دیجیتال"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 144,
+    "fields": {
+      "title": "زبان انگلیسی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 145,
+    "fields": {
+      "title": "زبان فرانسوی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 146,
+    "fields": {
+      "title": "زبان روسی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 147,
+    "fields": {
+      "title": "زبان چینی"
+    }
+  },
+  {
+    "model": "settings.studyfield",
+    "pk": 148,
+    "fields": {
+      "title": "زبان آلمانی"
+    }
+  }
+]

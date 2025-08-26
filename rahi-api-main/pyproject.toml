@@ -1,0 +1,65 @@
+[tool.poetry]
+name = "rahi-api"
+version = "0.1.0"
+description = "some $h!t for ppl"
+authors = ["DPTF"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+django = "^5.0.6"
+djangorestframework = "^3.15.1"
+drf-spectacular = "^0.27.2"
+environs = "^11.0.0"
+djangorestframework-simplejwt = "^5.3.1"
+dj-database-url = "^2.2.0"
+django-cors-headers = "^4.3.1"
+django-filter = "^24.2"
+pre-commit = "^3.7.1"
+django-jalali-date = "^1.1.2"
+requests = "^2.32.3"
+pyjwt = { extras = ["crypto"], version = "^2.8.0" }
+model-bakery = "^1.18.1"
+coverage = "^7.5.3"
+django-admin-interface = "^0.28.6"
+django-resized = "^1.0.2"
+redis = "^5.0.5"
+factory-boy = "^3.3.0"
+psycopg2 = "^2.9.9"
+drf-nested-routers = "^0.94.1"
+pandas = "^2.2.2"
+openpyxl = "^3.1.5"
+freezegun = "^1.5.1"
+xlsxwriter = "^3.2.0"
+whitenoise = "6.5.0"
+waitress = "2.1.2"
+uwsgi = "2.0.27"
+uvicorn = "0.31.0"
+filetype = "^1.2.0"
+
+[tool.ruff]
+select = ["E", "F", "I"]
+ignore = ["E501", "E741", "E402"]
+line-length = 120
+ignore-init-module-imports = true
+
+[tool.ruff.per-file-ignores]
+"apps.py" = ["F401"]
+"settings.py" = ["F401", "E402"]
+"__init__.py" = ["F401", "E402"]
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.coverage.report]
+fail_under = 100
+show_missing = true
+skip_covered = true
+omit = ["*/tests/*", "manage.py", "conf/*"]
+exclude_also = [
+    "if settings.IS_TEST",
+    "if not settings.IS_TEST",
+    "if IS_TEST",
+    "if not IS_TEST",
+]

@@ -1,0 +1,123 @@
+stages:
+  - build
+  - deploy
+
+build_service:
+  stage: build
+  script:
+    - cd ~/service; git stash
+    - cd ~/service; git pull
+    - ~/build $CI_REGISTRY_USER $CI_REGISTRY_PASSWORD $CI_REGISTRY $CI_REGISTRY_IMAGE:rahisho_test
+  tags:
+    - specific-runner
+  only:
+    - main
+
+build_service_rahzit:
+  stage: build
+  script:
+    - cd ~/service; git stash
+    - cd ~/service; git pull
+    - ~/build $CI_REGISTRY_USER $CI_REGISTRY_PASSWORD $CI_REGISTRY $CI_REGISTRY_IMAGE:rahzit_test
+  tags:
+    - rahizist-specific-runner 
+  only:
+    - main
+
+build_service_rahisho_online:
+  stage: build
+  script:
+    - cd ~/service; git stash
+    - cd ~/service; git pull
+    - ~/build $CI_REGISTRY_USER $CI_REGISTRY_PASSWORD $CI_REGISTRY $CI_REGISTRY_IMAGE:rahisho_online
+  tags:
+    - rahisho-online-specific-runner
+  only:
+    - main
+
+build_service_rahzist_ir:
+  stage: build
+  script:
+    - cd ~/service; git stash
+    - cd ~/service; git pull
+    - ~/build $CI_REGISTRY_USER $CI_REGISTRY_PASSWORD $CI_REGISTRY $CI_REGISTRY_IMAGE:rahzist_ir
+  tags:
+    - rahzist-ir-specific-runner
+  only:
+    - main
+
+build_service_soraya:
+  stage: build
+  script:
+    - cd ~/service; git stash
+    - cd ~/service; git pull
+    - ~/build $CI_REGISTRY_USER $CI_REGISTRY_PASSWORD $CI_REGISTRY $CI_REGISTRY_IMAGE:soraya
+  tags:
+    - soraya-specific-runner 
+  only:
+    - main
+
+deploy_service_rahzit:
+  stage: deploy
+  script:
+    - cd ~/service; git stash
+    - cd ~/service; git pull
+    - ~/down
+    - echo $CI_REGISTRY_USER $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - ~/up $CI_REGISTRY_USER $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  tags:
+    - rahizist-specific-runner 
+  only:
+    - main
+
+deploy_service:
+  stage: deploy
+  script:
+    - cd ~/service; git stash
+    - cd ~/service; git pull
+    - ~/down
+    - echo $CI_REGISTRY_USER $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - ~/up $CI_REGISTRY_USER $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  tags:
+    - specific-runner
+  only:
+    - main
+
+deploy_service_rahisho_online:
+  stage: deploy
+  script:
+    - cd ~/service; git stash
+    - cd ~/service; git pull
+    - ~/down
+    - echo $CI_REGISTRY_USER $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - ~/up $CI_REGISTRY_USER $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  tags:
+    - rahisho-online-specific-runner
+  only:
+    - main
+
+deploy_service_rahzist_ir:
+  stage: deploy
+  script:
+    - cd ~/service; git stash
+    - cd ~/service; git pull
+    - ~/down
+    - echo $CI_REGISTRY_USER $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - ~/up $CI_REGISTRY_USER $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  tags:
+    - rahzist-ir-specific-runner
+  only:
+    - main
+
+deploy_service_soraya:
+  stage: deploy
+  script:
+    - cd ~/service; git stash
+    - cd ~/service; git pull
+    - ~/down
+    - echo $CI_REGISTRY_USER $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - ~/up $CI_REGISTRY_USER $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  tags:
+    - soraya-specific-runner
+  only:
+    - main

@@ -1,0 +1,42 @@
+version: '3'
+services:
+  nginx:
+    image: nginx:1.23.1-alpine
+    restart: unless-stopped
+    volumes:
+      - "./.ci/nginx/conf.d:/etc/nginx/conf.d"
+      - "./api-media:/usr/nginx/api-media/"
+    ports:
+      - "${NGINX_PORT}:15520"
+    depends_on:
+      - service
+  service:
+    image: "reg.git.tadbirserver.ir:443/portal/rahi-api:${SERVICE_VERSION:-latest}"
+    restart: unless-stopped
+    volumes:
+      - "./DATA:/home/django/DATA"
+      - "./api-media:/home/django/api-media"
+    env_file:
+      - ./.env
+    depends_on:
+      - postgresdb
+      - redis
+    entrypoint: ./entry.sh
+  postgresdb:
+    image: postgres
+    restart: unless-stopped
+    volumes:
+      - "postgresdb:/var/lib/postgresql/data"
+    environment:
+      POSTGRES_DB: "${POSTGRES_NAME}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASS}"
+      POSTGRES_USER: "${POSTGRES_USER}"
+  redis:
+    image: redis:latest
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+
+volumes:
+  postgresdb:
+  redis-data:

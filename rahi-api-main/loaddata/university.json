@@ -1,0 +1,1241 @@
+[
+  {
+    "model": "settings.university",
+    "pk": 1,
+    "fields": {
+      "title": "پژوهشگاه رنگ"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 2,
+    "fields": {
+      "title": "دانشکده ریاضی وکامپیوترخوانسار"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 3,
+    "fields": {
+      "title": "دانشکده علوم انسانی حضرت نرجس (س)"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 4,
+    "fields": {
+      "title": "دانشکده فنی و مهندسی فناوری های نوین سبزوار حضرت زینب (ویژه خواهران)"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 5,
+    "fields": {
+      "title": "دانشکده فنی و مهندسی گرمسار"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 6,
+    "fields": {
+      "title": "دانشکده فنی ومهندسی گلپایگان"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 7,
+    "fields": {
+      "title": "دانشکده کشاورزی شیروان"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 8,
+    "fields": {
+      "title": "دانشکده کشاورزی و دام پروی تربت جام"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 9,
+    "fields": {
+      "title": "دانشکده کشاورزی ومنابع طبیعی داراب"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 10,
+    "fields": {
+      "title": "دانشگاه اراک"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 11,
+    "fields": {
+      "title": "دانشگاه اردکان"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 12,
+    "fields": {
+      "title": "دانشگاه ارومیه"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 13,
+    "fields": {
+      "title": "دانشگاه اصفهان"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 14,
+    "fields": {
+      "title": "دانشگاه الزهرا(س)"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 15,
+    "fields": {
+      "title": "دانشگاه ایلام"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 16,
+    "fields": {
+      "title": "دانشگاه آزاد اسلامی"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 17,
+    "fields": {
+      "title": "دانشگاه آزاد اسلامی اراک"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 18,
+    "fields": {
+      "title": "دانشگاه آزاد اسلامی اردبیل"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 19,
+    "fields": {
+      "title": "دانشگاه آزاد اسلامی ارومیه"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 20,
+    "fields": {
+      "title": "دانشگاه آزاد اسلامی اهواز"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 21,
+    "fields": {
+      "title": "دانشگاه آزاد اسلامی ایلام"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 22,
+    "fields": {
+      "title": "دانشگاه آزاد اسلامی بجنورد"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 23,
+    "fields": {
+      "title": "دانشگاه آزاد اسلامی بندرعباس"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 24,
+    "fields": {
+      "title": "دانشگاه آزاد اسلامی بوشهر"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 25,
+    "fields": {
+      "title": "دانشگاه آزاد اسلامی بیرجند"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 26,
+    "fields": {
+      "title": "دانشگاه آزاد اسلامی تبریز"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 27,
+    "fields": {
+      "title": "دانشگاه آزاد اسلامی تهران پزشکی"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 28,
+    "fields": {
+      "title": "دانشگاه آزاد اسلامی تهران جنوب"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 29,
+    "fields": {
+      "title": "دانشگاه آزاد اسلامی تهران شرق"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 30,
+    "fields": {
+      "title": "دانشگاه آزاد اسلامی تهران شمال"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 31,
+    "fields": {
+      "title": "دانشگاه آزاد اسلامی تهران مرکزی"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 32,
+    "fields": {
+      "title": "دانشگاه آزاد اسلامی دندانپزشکی"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 33,
+    "fields": {
+      "title": "دانشگاه آزاد اسلامی رشت"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 34,
+    "fields": {
+      "title": "دانشگاه آزاد اسلامی زاهدان"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 35,
+    "fields": {
+      "title": "دانشگاه آزاد اسلامی زنجان"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 36,
+    "fields": {
+      "title": "دانشگاه آزاد اسلامی ساری"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 37,
+    "fields": {
+      "title": "دانشگاه آزاد اسلامی سمنان"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 38,
+    "fields": {
+      "title": "دانشگاه آزاد اسلامی سنندج"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 39,
+    "fields": {
+      "title": "دانشگاه آزاد اسلامی شاهرود"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 40,
+    "fields": {
+      "title": "دانشگاه آزاد اسلامی شهرری"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 41,
+    "fields": {
+      "title": "دانشگاه آزاد اسلامی شهرکرد"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 42,
+    "fields": {
+      "title": "دانشگاه آزاد اسلامی شیراز"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 43,
+    "fields": {
+      "title": "دانشگاه آزاد اسلامی علوم دارویی"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 44,
+    "fields": {
+      "title": "دانشگاه آزاد اسلامی علوم و تحقیقات اصفهان"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 45,
+    "fields": {
+      "title": "دانشگاه آزاد اسلامی علوم و تحقیقات آذربایجان شرقی"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 46,
+    "fields": {
+      "title": "دانشگاه آزاد اسلامی علوم و تحقیقات خوزستان"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 47,
+    "fields": {
+      "title": "دانشگاه آزاد اسلامی علوم و تحقیقات فارس"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 48,
+    "fields": {
+      "title": "دانشگاه آزاد اسلامی علوم و تحقیقات کرمان"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 49,
+    "fields": {
+      "title": "دانشگاه آزاد اسلامی قزوین"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 50,
+    "fields": {
+      "title": "دانشگاه آزاد اسلامی قم"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 51,
+    "fields": {
+      "title": "دانشگاه آزاد اسلامی کاشان"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 52,
+    "fields": {
+      "title": "دانشگاه آزاد اسلامی کرج"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 53,
+    "fields": {
+      "title": "دانشگاه آزاد اسلامی کرمان"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 54,
+    "fields": {
+      "title": "دانشگاه آزاد اسلامی کرمانشاه"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 55,
+    "fields": {
+      "title": "دانشگاه آزاد اسلامی گرگان"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 56,
+    "fields": {
+      "title": "دانشگاه آزاد اسلامی مشهد مقدس"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 57,
+    "fields": {
+      "title": "دانشگاه آزاد اسلامی همدان"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 58,
+    "fields": {
+      "title": "دانشگاه آزاد اسلامی یاسوج"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 59,
+    "fields": {
+      "title": "دانشگاه آزاد اسلامی یزد"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 60,
+    "fields": {
+      "title": "دانشگاه بجنورد"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 61,
+    "fields": {
+      "title": "دانشگاه بزرگمهر قائنات"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 62,
+    "fields": {
+      "title": "دانشگاه بناب"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 63,
+    "fields": {
+      "title": "دانشگاه بوعلی سینا"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 64,
+    "fields": {
+      "title": "دانشگاه بیرجند"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 65,
+    "fields": {
+      "title": "دانشگاه بین‌المللی امام خمینی (ره)"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 66,
+    "fields": {
+      "title": "دانشگاه پیام نور"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 67,
+    "fields": {
+      "title": "دانشگاه تبریز"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 68,
+    "fields": {
+      "title": "دانشگاه تحصیلات تکمیلی صنعتی و فناوری پیشرفته"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 69,
+    "fields": {
+      "title": "دانشگاه تحصیلات تکمیلی علوم پایه زنجان"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 70,
+    "fields": {
+      "title": "دانشگاه تخصصی فناوری های نوین آمل"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 71,
+    "fields": {
+      "title": "دانشگاه تربت حیدریه"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 72,
+    "fields": {
+      "title": "دانشگاه تربیت دبیر شهید رجایی"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 73,
+    "fields": {
+      "title": "دانشگاه تربیت مدرس"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 74,
+    "fields": {
+      "title": "دانشگاه تفرش"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 75,
+    "fields": {
+      "title": "دانشگاه تهران"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 76,
+    "fields": {
+      "title": "دانشگاه جامع امام حسین (ع)"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 77,
+    "fields": {
+      "title": "دانشگاه جامع علمی ـ کاربردی"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 78,
+    "fields": {
+      "title": "دانشگاه جامعه المصطفی العالمیه"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 79,
+    "fields": {
+      "title": "دانشگاه جهرم"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 80,
+    "fields": {
+      "title": "دانشگاه حضرت آیت الله العظمی بروجردی (ره)"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 81,
+    "fields": {
+      "title": "دانشگاه حکیم سبزواری"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 82,
+    "fields": {
+      "title": "دانشگاه خلیج فارس"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 83,
+    "fields": {
+      "title": "دانشگاه دامغان"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 84,
+    "fields": {
+      "title": "دانشگاه دریانوردی و علوم دریایی چابهار"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 85,
+    "fields": {
+      "title": "دانشگاه رازی"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 86,
+    "fields": {
+      "title": "دانشگاه زابل"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 87,
+    "fields": {
+      "title": "دانشگاه زنجان"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 88,
+    "fields": {
+      "title": "دانشگاه سلمان فارسی کازرون"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 89,
+    "fields": {
+      "title": "دانشگاه سمنان"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 90,
+    "fields": {
+      "title": "دانشگاه سیدجمال الدین اسدآبادی"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 91,
+    "fields": {
+      "title": "دانشگاه سیستان و بلوچستان"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 92,
+    "fields": {
+      "title": "دانشگاه شاهد"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 93,
+    "fields": {
+      "title": "دانشگاه شهرکرد"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 94,
+    "fields": {
+      "title": "دانشگاه شهید باهنرکرمان"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 95,
+    "fields": {
+      "title": "دانشگاه شهید بهشتی"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 96,
+    "fields": {
+      "title": "دانشگاه شهید چمران اهواز"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 97,
+    "fields": {
+      "title": "دانشگاه شهیدمدنی آذربایجان"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 98,
+    "fields": {
+      "title": "دانشگاه شهیدمطهری"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 99,
+    "fields": {
+      "title": "دانشگاه شیراز"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 100,
+    "fields": {
+      "title": "دانشگاه صنایع ومعادن ایران"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 101,
+    "fields": {
+      "title": "دانشگاه صنعت نفت"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 102,
+    "fields": {
+      "title": "دانشگاه صنعتی اراک"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 103,
+    "fields": {
+      "title": "دانشگاه صنعتی ارومیه"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 104,
+    "fields": {
+      "title": "دانشگاه صنعتی اصفهان"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 105,
+    "fields": {
+      "title": "دانشگاه صنعتی امیرکبیر"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 106,
+    "fields": {
+      "title": "دانشگاه صنعتی بیرجند"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 107,
+    "fields": {
+      "title": "دانشگاه صنعتی جندی شاپور"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 108,
+    "fields": {
+      "title": "دانشگاه صنعتی خاتم الانبیاء بهبهان"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 109,
+    "fields": {
+      "title": "دانشگاه صنعتی خواجه نصیرالدین طوسی"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 110,
+    "fields": {
+      "title": "دانشگاه صنعتی سهند"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 111,
+    "fields": {
+      "title": "دانشگاه صنعتی سیرجان"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 112,
+    "fields": {
+      "title": "دانشگاه صنعتی شاهرود"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 113,
+    "fields": {
+      "title": "دانشگاه صنعتی شریف"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 114,
+    "fields": {
+      "title": "دانشگاه صنعتی شهدای هویزه"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 115,
+    "fields": {
+      "title": "دانشگاه صنعتی شیراز"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 116,
+    "fields": {
+      "title": "دانشگاه صنعتی قم"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 117,
+    "fields": {
+      "title": "دانشگاه صنعتی کرمانشاه"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 118,
+    "fields": {
+      "title": "دانشگاه صنعتی نوشیروانی بابل"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 119,
+    "fields": {
+      "title": "دانشگاه صنعتی همدان"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 120,
+    "fields": {
+      "title": "دانشگاه علامه طباطبائی"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 121,
+    "fields": {
+      "title": "دانشگاه علم و صنعت ایران"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 122,
+    "fields": {
+      "title": "دانشگاه علم وفناوری مازندران"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 123,
+    "fields": {
+      "title": "دانشگاه علوم انسانی حضرت معصومه(س)"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 124,
+    "fields": {
+      "title": "دانشگاه علوم کشاورزی و منابع طبیعی خوزستان"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 125,
+    "fields": {
+      "title": "دانشگاه علوم کشاورزی و منابع طبیعی ساری"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 126,
+    "fields": {
+      "title": "دانشگاه علوم کشاورزی و منابع طبیعی گرگان"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 127,
+    "fields": {
+      "title": "دانشگاه علوم و فنون دریایی خرمشهر"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 128,
+    "fields": {
+      "title": "دانشگاه فردوسی مشهد"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 129,
+    "fields": {
+      "title": "دانشگاه فرزانگان سمنان"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 130,
+    "fields": {
+      "title": "دانشگاه فرماندهی و ستاد آجا"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 131,
+    "fields": {
+      "title": "دانشگاه فرهنگیان"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 132,
+    "fields": {
+      "title": "دانشگاه فسا"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 133,
+    "fields": {
+      "title": "دانشگاه فنی وحرفه ای"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 134,
+    "fields": {
+      "title": "دانشگاه قم"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 135,
+    "fields": {
+      "title": "دانشگاه کاشان"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 136,
+    "fields": {
+      "title": "دانشگاه کردستان"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 137,
+    "fields": {
+      "title": "دانشگاه کوثر"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 138,
+    "fields": {
+      "title": "دانشگاه گلستان"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 139,
+    "fields": {
+      "title": "دانشگاه گنبد کاووس"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 140,
+    "fields": {
+      "title": "دانشگاه گیلان"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 141,
+    "fields": {
+      "title": "دانشگاه لرستان"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 142,
+    "fields": {
+      "title": "دانشگاه مازندران"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 143,
+    "fields": {
+      "title": "دانشگاه محقق اردبیلی"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 144,
+    "fields": {
+      "title": "دانشگاه مراغه"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 145,
+    "fields": {
+      "title": "دانشگاه ملایر"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 146,
+    "fields": {
+      "title": "دانشگاه مهندسی علوم وفناوری های نوین گلبهار"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 147,
+    "fields": {
+      "title": "دانشگاه مهندسی فناوری های نوین قوچان"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 148,
+    "fields": {
+      "title": "دانشگاه میبد"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 149,
+    "fields": {
+      "title": "دانشگاه نیشابور"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 150,
+    "fields": {
+      "title": "دانشگاه هرمزگان"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 151,
+    "fields": {
+      "title": "دانشگاه هنر"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 152,
+    "fields": {
+      "title": "دانشگاه هنر اسلامی تبریز"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 153,
+    "fields": {
+      "title": "دانشگاه هنر اصفهان"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 154,
+    "fields": {
+      "title": "دانشگاه هنرشیراز"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 155,
+    "fields": {
+      "title": "دانشگاه ولایت"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 156,
+    "fields": {
+      "title": "دانشگاه ولی عصر (عج)رفسنجان"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 157,
+    "fields": {
+      "title": "دانشگاه یاسوج"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 158,
+    "fields": {
+      "title": "دانشگاه یزد"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 159,
+    "fields": {
+      "title": "شهرک علمی و تحقیقاتی اصفهان"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 160,
+    "fields": {
+      "title": "مجتمع آموزش عالی اسفراین"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 161,
+    "fields": {
+      "title": "مجتمع آموزش عالی بم"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 162,
+    "fields": {
+      "title": "مجتمع آموزش عالی زرند"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 163,
+    "fields": {
+      "title": "مجتمع آموزش عالی سراوان"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 164,
+    "fields": {
+      "title": "مجتمع آموزش عالی فاطمیه نهاوند (ویژه دختران)"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 165,
+    "fields": {
+      "title": "مجتمع آموزش عالی گناباد"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 166,
+    "fields": {
+      "title": "مرکز آموزش عالی لار"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 167,
+    "fields": {
+      "title": "مرکز آموزش عالی محلات"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 168,
+    "fields": {
+      "title": "مرکز رشد واحدهای فناوری دانشگاه علوم کشاورزی و منابع طبیعی گرگان"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 169,
+    "fields": {
+      "title": "مرکزآموزش عالی استهبان"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 170,
+    "fields": {
+      "title": "مرکزآموزش عالی اقلید"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 171,
+    "fields": {
+      "title": "مرکزآموزش عالی شهرضا"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 172,
+    "fields": {
+      "title": "مرکزآموزش عالی فنی ومهندسی بوئین زهرا"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 173,
+    "fields": {
+      "title": "مرکزآموزش عالی فیروزآباد"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 174,
+    "fields": {
+      "title": "مرکزآموزش عالی لامرد"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 175,
+    "fields": {
+      "title": "مرکزآموزش عالی ممسنی"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 176,
+    "fields": {
+      "title": "مرکزرشد واحدهای فناوری دانشگاه کاشان"
+    }
+  },
+  {
+    "model": "settings.university",
+    "pk": 177,
+    "fields": {
+      "title": "موسسه عالی آموزش و پژوهش و مدیریت و برنامه ریزی"
+    }
+  }
+]
