@@ -9,6 +9,9 @@ from apps.project import models
 from apps.project.api.serializers import team
 from apps.resume.models import Resume
 from apps.settings.api.serializers.study_field import StudyFieldSerializer
+from apps.project.api.serializers.tag import ProjectTagSerializer
+from apps.resume.models import Resume
+from apps.settings.api.serializers.study_field import StudyFieldSerializer
 
 
 class ScenarioSerializer(serializers.ModelSerializer):
@@ -100,16 +103,75 @@ class ProjectSerializer(serializers.ModelSerializer):
     project_scenario = ScenarioSerializer(many=True, read_only=True)
     project_task = TaskSerializer(many=True, read_only=True)
     study_fields = StudyFieldSerializer(many=True, read_only=True)
+    tags = ProjectTagSerializer(many=True, read_only=True)
+    tag_ids = serializers.ListField(
+        child=serializers.UUIDField(),
+        write_only=True,
+        required=False,
+        allow_empty=True,
+        help_text="فهرست IDهای تگ‌هایی که می‌خواهید به پروژه اضافه کنید"
+    )
 
     class Meta:
         model = models.Project
         exclude = ["deleted", "deleted_at"]
+
+    def create(self, validated_data):
+        # Extract tag_ids and study_fields_ids before creating project
+        tag_ids = validated_data.pop('tag_ids', [])
+        study_fields_ids = self.context.get('study_fields_ids', [])
+        
+        # Create the project
+        project = super().create(validated_data)
+        
+        # Set study fields (your existing logic)
+        if study_fields_ids:
+            project.study_fields.set(study_fields_ids)
+        
+        # ADD THIS: Set tags
+        if tag_ids:
+            # Validate that all tag IDs exist
+            existing_tags = models.Tag.objects.filter(id__in=tag_ids)
+            if existing_tags.count() != len(tag_ids):
+                # Clean up and raise error
+                project.delete()
+                raise ValidationError("برخی از تگ‌های انتخاب شده معتبر نیستند")
+            project.tags.set(existing_tags)
+        
+        return project
+
+    def update(self, instance, validated_data):
+        # Extract tag_ids before updating
+        tag_ids = validated_data.pop('tag_ids', None)
+        study_fields_ids = self.context.get('study_fields_ids', None)
+        
+        # Update the project
+        instance = super().update(instance, validated_data)
+        
+        # Update study fields if provided (your existing logic)
+        if study_fields_ids is not None:
+            instance.study_fields.set(study_fields_ids)
+        
+        # ADD THIS: Update tags if provided
+        if tag_ids is not None:
+            if tag_ids:
+                existing_tags = models.Tag.objects.filter(id__in=tag_ids)
+                if existing_tags.count() != len(tag_ids):
+                    raise ValidationError("برخی از تگ‌های انتخاب شده معتبر نیستند")
+                instance.tags.set(existing_tags)
+            else:
+                # Clear all tags if empty list provided
+                instance.tags.clear()
+        
+        return instance
 
     def to_representation(self, instance):
         rep = super().to_representation(instance)
         rep["image"] = instance.image.url if instance.image else None
         rep["video"] = instance.video.url if instance.video else None
         rep["file"] = instance.file.url if instance.file else None
+        # Include tag count for convenience
+        rep["tags_count"] = instance.tags.count()
         return rep
 
 
@@ -117,6 +179,7 @@ class UserProjectSerializer(serializers.ModelSerializer):
     project_scenario = serializers.SerializerMethodField()
     project_task = serializers.SerializerMethodField()
     study_fields = StudyFieldSerializer(many=True, read_only=True)
+    tags = ProjectTagSerializer(many=True, read_only=True)
 
     class Meta:
         model = models.Project
@@ -124,21 +187,21 @@ class UserProjectSerializer(serializers.ModelSerializer):
 
     def get_project_scenario(self, obj):
         user = self.context["request"].user
-        user_allocate: models.ProjectAllocation = models.ProjectAllocation.objects.filter(user=user).first()
+        user_allocate = models.ProjectAllocation.objects.filter(user=user).first()
         if user_allocate:
             user_project = user_allocate.project
             if user_project:
-                scenarios: models.Scenario = obj.project_scenario.filter(project=user_project)
+                scenarios = obj.project_scenario.filter(project=user_project)
                 return ScenarioSerializer(scenarios, many=True).data
         return None
 
     def get_project_task(self, obj):
         user = self.context["request"].user
-        user_allocate: models.ProjectAllocation = models.ProjectAllocation.objects.filter(user=user).first()
+        user_allocate = models.ProjectAllocation.objects.filter(user=user).first()
         if user_allocate:
             user_project = user_allocate.project
             if user_project:
-                tasks: models.Task = obj.project_task.filter(project=user_project)
+                tasks = obj.project_task.filter(project=user_project)
                 return TaskSerializer(tasks, many=True).data
         return None
 
@@ -147,6 +210,8 @@ class UserProjectSerializer(serializers.ModelSerializer):
         rep["image"] = instance.image.url if instance.image else None
         rep["video"] = instance.video.url if instance.video else None
         rep["file"] = instance.file.url if instance.file else None
+
+        rep["tags_count"] = instance.tags.count()
         return rep
 
 
@@ -278,6 +343,7 @@ class AdminFinalRepSerializerV2(serializers.ModelSerializer):
 
 class HomePageProjectSerializer(serializers.ModelSerializer):
     study_fields = StudyFieldSerializer(many=True, read_only=True)
+    tags = ProjectTagSerializer(many=True, read_only=True)
 
     class Meta:
         model = models.Project
