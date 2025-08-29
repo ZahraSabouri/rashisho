@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "some $h!t for ppl"
 authors = ["DPTF"]
 readme = "README.md"
+package-mode = false
 
 [tool.poetry.dependencies]
 python = "^3.12"
@@ -33,7 +34,6 @@ freezegun = "^1.5.1"
 xlsxwriter = "^3.2.0"
 whitenoise = "6.5.0"
 waitress = "2.1.2"
-uwsgi = "2.0.27"
 uvicorn = "0.31.0"
 filetype = "^1.2.0"
 

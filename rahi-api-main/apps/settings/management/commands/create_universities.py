@@ -15,8 +15,8 @@ class Command(BaseCommand):
 
             universities = []
             for item in excel_content:
-                if not University.objects.filter(title=item[1]).exists():
-                    universities.append(University(title=item[1]))
+                if not University.objects.filter(title=item[0]).exists():
+                    universities.append(University(title=item[0]))
             University.objects.bulk_create(universities)
 
             print("University successfully add to database")

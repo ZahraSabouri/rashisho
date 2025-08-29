@@ -27,7 +27,7 @@ CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS")
 
 # CORS header config
 CORS_ALLOW_ALL_ORIGINS = env.bool("DEBUG")
-CORS_ALLOWED_ORIGINS = env.list("CORS_ALLOWED_ORIGINS")
+# CORS_ALLOWED_ORIGINS = env.list("CORS_ALLOWED_ORIGINS")
 
 # Application definition
 
