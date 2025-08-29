@@ -9,6 +9,40 @@ from apps.project.services import validate_persian
 from apps.settings.models import StudyField
 
 
+class Tag(BaseModel):
+    """
+    Model for project keywords/tags.
+    Allows categorization and discovery of related projects.
+    """
+    name = models.CharField(
+        max_length=100, 
+        unique=True, 
+        verbose_name="نام تگ",
+        help_text="نام کلیدواژه (مثال: python, django, machine-learning)"
+    )
+    description = models.TextField(
+        blank=True, 
+        null=True, 
+        verbose_name="توضیحات",
+        help_text="توضیح مختصری درباره این کلیدواژه"
+    )
+    
+    class Meta(BaseModel.Meta):
+        verbose_name = "کلیدواژه"
+        verbose_name_plural = "کلیدواژه ها"
+        ordering = ['name']
+    
+    def __str__(self):
+        return self.name
+    
+    def clean(self):
+        """Clean and validate tag name"""
+        if self.name:
+            self.name = self.name.strip().lower()
+            if len(self.name) < 2:
+                raise ValidationError("نام تگ باید حداقل 2 کاراکتر باشد")
+
+
 def project_priority() -> dict:
     return {
         "1": None,
@@ -71,12 +105,36 @@ class Project(BaseModel):
     file = models.FileField(upload_to="project/files", null=True, blank=True, verbose_name="فایل")
     telegram_id = models.CharField(max_length=255, null=True, verbose_name="آدرس تلگرام")
 
+    tags = models.ManyToManyField(
+        Tag, 
+        blank=True, 
+        related_name="projects", 
+        verbose_name="کلیدواژه ها",
+        help_text="کلیدواژه‌های مرتبط با این پروژه برای بهتر یافت شدن و پیشنهاد پروژه‌های مرتبط"
+    )
+
     class Meta(BaseModel.Meta):
         verbose_name = "پروژه"
         verbose_name_plural = "پروژه ها"
 
     def __str__(self):
         return self.title
+    
+    def get_related_projects(self, limit=6):
+        """Get projects with shared tags"""
+        if not self.tags.exists():
+            return Project.objects.none()
+        
+        return Project.objects.filter(
+            tags__in=self.tags.all(),
+            visible=True
+        ).exclude(
+            id=self.id
+        ).annotate(
+            shared_tags_count=models.Count('tags', filter=models.Q(tags__in=self.tags.all()))
+        ).filter(
+            shared_tags_count__gt=0
+        ).order_by('-shared_tags_count')[:limit]
 
 
 class ProjectAllocation(BaseModel):
