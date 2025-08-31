@@ -12,7 +12,7 @@ from apps.settings.api.serializers.study_field import StudyFieldSerializer
 from apps.project.api.serializers.tag import ProjectTagSerializer
 from apps.resume.models import Resume
 from apps.settings.api.serializers.study_field import StudyFieldSerializer
-
+from apps.project.models import Project
 
 class ScenarioSerializer(serializers.ModelSerializer):
     class Meta:
@@ -111,10 +111,18 @@ class ProjectSerializer(serializers.ModelSerializer):
         allow_empty=True,
         help_text="فهرست IDهای تگ‌هایی که می‌خواهید به پروژه اضافه کنید"
     )
+    comments_count = serializers.ReadOnlyField()
+    has_comments = serializers.ReadOnlyField()
+    latest_comments = serializers.SerializerMethodField()
+    comment_stats = serializers.SerializerMethodField()
 
     class Meta:
         model = models.Project
-        exclude = ["deleted", "deleted_at"]
+        exclude = ["deleted", "deleted_at",
+                   'comments_count',
+                   'has_comments',
+                   'latest_comments',
+                   'comment_stats']
 
     def create(self, validated_data):
         # Extract tag_ids and study_fields_ids before creating project
@@ -174,6 +182,75 @@ class ProjectSerializer(serializers.ModelSerializer):
         rep["tags_count"] = instance.tags.count()
         return rep
 
+    def get_latest_comments(self, obj):
+        """دریافت آخرین نظرات برای نمایش در لیست پروژه‌ها"""
+        try:
+            from apps.comments.utils import format_comment_for_display
+            comments = obj.get_latest_comments(limit=3)
+            return [
+                format_comment_for_display(comment, self.context.get('request', {}).user)
+                for comment in comments
+            ]
+        except:
+            return []
+    
+    def get_comment_stats(self, obj):
+        """دریافت آمار کلی نظرات"""
+        return obj.get_comment_statistics()
+
+# apps/project/api/serializers/project.py
+
+class ProjectDetailSerializer(ProjectSerializer):
+    """سریالایزر جزئیات پروژه با اطلاعات کامل نظرات"""
+    
+    recent_comments = serializers.SerializerMethodField()
+    top_comments = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = models.Project
+        # Use explicit field list instead of trying to inherit from exclude
+        fields = [
+            'id', 'title', 'description', 'company', 'leader',
+            'image', 'video', 'file', 'visible', 'created_at', 'updated_at',
+            'project_scenario', 'project_task', 'study_fields', 'tags', 'tag_ids',
+            'comments_count', 'has_comments', 'latest_comments', 'comment_stats',
+            'recent_comments', 'top_comments'  # Add your new fields
+        ]
+        # Or alternatively, keep the parent's exclude and handle the new fields in methods
+    
+    def get_recent_comments(self, obj):
+        """نظرات اخیر برای صفحه جزئیات"""
+        try:
+            from apps.comments.utils import format_comment_for_display
+            comments = obj.get_latest_comments(limit=10)
+            return [
+                format_comment_for_display(comment, self.context.get('request', {}).user)
+                for comment in comments
+            ]
+        except:
+            return []
+    
+    def get_top_comments(self, obj):
+        """نظرات برتر بر اساس تعداد لایک"""
+        try:
+            from apps.comments.models import Comment
+            from apps.comments.utils import format_comment_for_display
+            from django.contrib.contenttypes.models import ContentType
+            
+            content_type = ContentType.objects.get_for_model(models.Project)
+            top_comments = Comment.objects.filter(
+                content_type=content_type,
+                object_id=obj.id,
+                status='APPROVED',
+                parent__isnull=True
+            ).order_by('-likes_count', '-created_at')[:5]
+            
+            return [
+                format_comment_for_display(comment, self.context.get('request', {}).user)
+                for comment in top_comments
+            ]
+        except:
+            return []
 
 class UserProjectSerializer(serializers.ModelSerializer):
     project_scenario = serializers.SerializerMethodField()
