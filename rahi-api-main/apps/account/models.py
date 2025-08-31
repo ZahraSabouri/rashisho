@@ -112,3 +112,44 @@ class User(BaseModel, AbstractUser, PermissionsMixin):
 
     def __str__(self) -> str:
         return f"{self.full_name}"
+
+
+class Connection(BaseModel):
+    """
+    Connection model:
+    - Represents a user-to-user connection request
+    - Contains status: pending, accepted, rejected
+    - Once accepted, both users can see each other's phone number
+    """
+    STATUS_CHOICES = [
+        ("pending", "در انتظار"),
+        ("accepted", "پذیرفته شده"),
+        ("rejected", "رد شده"),
+    ]
+
+    from_user = models.ForeignKey(
+        "User",
+        related_name="connections_sent",
+        on_delete=models.CASCADE,
+        verbose_name="کاربر درخواست‌دهنده"
+    )
+    to_user = models.ForeignKey(
+        "User",
+        related_name="connections_received",
+        on_delete=models.CASCADE,
+        verbose_name="کاربر دریافت‌کننده"
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default="pending",
+        verbose_name="وضعیت"
+    )
+
+    class Meta(BaseModel.Meta):
+        verbose_name = "ارتباط"
+        verbose_name_plural = "ارتباط‌ها"
+        unique_together = ("from_user", "to_user")
+
+    def __str__(self):
+        return f"{self.from_user} → {self.to_user} ({self.status})"
