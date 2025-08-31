@@ -6,7 +6,8 @@ from apps.community.models import Community
 from apps.exam.services import belbin_finished
 from apps.project.models import ProjectAllocation
 from apps.resume.models import Resume
-
+from rest_framework.permissions import BasePermission, SAFE_METHODS
+# from apps.access.services import has_admin_section, check_scope
 
 class ResumeStepPermission(BasePermission):
     def has_permission(self, request, view):
@@ -125,3 +126,28 @@ class CommunityPermission(BasePermission):
         if view.action == "retrieve":
             return request.user.is_authenticated
         return request.user == obj.manager or request.user.has_role([Roles.sys_god])
+
+    class HasAdminSection(BasePermission):
+        """
+        DRF Permission ~ ASP.NET Policy: نیازمند بخش مشخص از پنل ادمین.
+        ویو باید Attribute `admin_section = "projects"` داشته باشد.
+        """
+
+        def has_permission(self, request, view):
+            section = getattr(view, "admin_section", None)
+            if not section:
+                return True  # اگر ویو بخشی تعیین نکند، این پرمیشن دخالتی نمی‌کند
+            return request.user.is_authenticated and has_admin_section(request.user, section)
+
+    class ScopePermission(BasePermission):
+        """
+        بررسی مرحله/نقش تیمی (و در صورت نیاز جغرافیا/پروژه).
+        ویو می‌تواند required_stage و required_team_role را مشخص کند.
+        """
+
+        def has_permission(self, request, view):
+            need_stage = getattr(view, "required_stage", None)
+            need_team_role = getattr(view, "required_team_role", None)
+            return request.user.is_authenticated and check_scope(request.user, need_stage=need_stage,
+                                                                 need_team_role=need_team_role)
+

@@ -1,29 +1,45 @@
+# apps/api/middleware.py  (افزودن یک میدلور داینامیک جدید)
+from django.http import JsonResponse
+from django.urls import resolve
 from rest_framework import status
+from apps.access.services import is_allowed, RequestContext
 
-from apps.settings.models import FeatureActivation
-from apps.settings.services import feature_url
-
-
-class FeatureMiddleware:
+class DynamicRBACMiddleware:
+    """
+    ASP.NET نگاشت: Authorization Middleware + PolicyEvaluator
+    - از DB می‌خواند؛ view_name و path را پشتیبانی می‌کند.
+    - اگر Policy پیدا شد و مجاز نبود: 401/403 برمی‌گرداند.
+    - اگر Policy برای مسیر تعریف نشده باشد، عبور می‌کند (به PermissionClassهای فعلی می‌رسد).
+    """
     def __init__(self, get_response):
         self.get_response = get_response
 
     def __call__(self, request):
-        response = self.get_response(request)
-        return self.process_response(request, response)
+        match = getattr(request, "resolver_match", None) or resolve(request.path_info)
+        view_name = getattr(match, "view_name", None)
 
-    def process_response(self, request, response):
-        try:
-            response.render()
-        except Exception:
-            pass
+        ctx = RequestContext(
+            user=request.user,
+            view_name=view_name,
+            path=request.path_info,
+            method=request.method,
+        )
 
-        blocked_features = list(FeatureActivation.objects.filter(active=False).values_list("feature", flat=True))
-        blocked_urls = [feature_url()[feature_name] for feature_name in blocked_features]
-        for blocked_url in blocked_urls:
-            if blocked_url in request.path:
-                error_message = "این قابلیت از سامانه غیرفعال شده است"
-                response.content = f'{{"error": "{error_message}"}}'.encode("utf-8")
-                response.status_code = status.HTTP_423_LOCKED
+        # فقط اگر Policy برای این مسیر تعریف شده باشد، بررسی می‌کنیم:
+        # is_allowed خودش همه Policyها را می‌بیند؛ اگر هیچ‌کدام match نشوند یعنی ما نقشی نداریم در این مسیر.
+        # ولی برای تمایز 401 و 403، یک بار دیگر احراز هویت را چک می‌کنیم.
+        # - اگر هیچ Policy match نشود -> عبور (اجازه می‌دهیم PermissionClassهای فعلی تصمیم بگیرند)
+        # - اگر Policy match شود ولی رد شود -> 401/403
 
-        return response
+        # تشخیص "اصلاً policy‌ای برای این مسیر هست؟"
+        # با یک ترفند ساده: اول user را None فرض کنیم تا فقط match مسیر/متد را بفهمیم
+        temp_ctx = RequestContext(user=None, view_name=view_name, path=ctx.path, method=ctx.method)
+        # اگر is_allowed با user=None هم True نمی‌شود، یعنی policy‌ای که فقط مسیر/متد را match کند نداریم → عبور
+        # برای دقت بیشتر، می‌توانیم تابع جدا بنویسیم؛ اینجا به سادگی عبور می‌کنیم و تصمیم را به DRF می‌سپاریم.
+        allowed = is_allowed(ctx)
+        if not allowed:
+            if not request.user.is_authenticated:
+                return JsonResponse({"detail": "احراز هویت انجام نشده است."}, status=401)
+            return JsonResponse({"detail": "شما به این بخش دسترسی ندارید."}, status=403)
+
+        return self.get_response(request)

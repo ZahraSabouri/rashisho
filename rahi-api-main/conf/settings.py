@@ -50,6 +50,8 @@ LOCAL_APPS = [
     "apps.public",
     "apps.project",
     "apps.community",
+    "apps.access",
+
 ]
 
 EXTERNAL_APPS = [
@@ -70,6 +72,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "apps.api.middleware.DynamicRBACMiddleware",  # dynamic
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
