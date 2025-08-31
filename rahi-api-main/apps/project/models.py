@@ -8,6 +8,7 @@ from apps.common.models import BaseModel
 from apps.project.services import validate_persian
 from apps.settings.models import StudyField
 
+from django.contrib.contenttypes.fields import GenericRelation
 
 class Tag(BaseModel):
     """
@@ -112,6 +113,74 @@ class Project(BaseModel):
         verbose_name="کلیدواژه ها",
         help_text="کلیدواژه‌های مرتبط با این پروژه برای بهتر یافت شدن و پیشنهاد پروژه‌های مرتبط"
     )
+
+    
+    @property 
+    def comments_count(self):
+        """تعداد نظرات تایید شده این پروژه"""
+        try:
+            from apps.comments.utils import get_comment_count
+            return get_comment_count('project.project', self.id)
+        except ImportError:
+            return 0
+    
+    @property
+    def pending_comments_count(self):
+        """تعداد نظرات در انتظار تایید این پروژه"""
+        try:
+            from apps.comments.utils import get_comment_count
+            return get_comment_count('project.project', self.id, 'PENDING')
+        except ImportError:
+            return 0
+    
+    def get_comments(self, status='APPROVED', limit=None):
+        """دریافت نظرات این پروژه"""
+        try:
+            from apps.comments.services import ProjectCommentService
+            comments = ProjectCommentService.get_project_comments(self.id)
+            if limit:
+                return comments[:limit]
+            return comments
+        except ImportError:
+            return []
+    
+    def get_latest_comments(self, limit=5):
+        """دریافت آخرین نظرات این پروژه"""
+        return self.get_comments(limit=limit)
+    
+    def get_comment_statistics(self):
+        """دریافت آمار نظرات این پروژه"""
+        try:
+            from apps.comments.services import ProjectCommentService
+            return ProjectCommentService.get_project_comment_summary(self.id)
+        except ImportError:
+            return {
+                'total': 0,
+                'approved': 0,
+                'pending': 0,
+                'rejected': 0,
+                'total_likes': 0,
+                'total_dislikes': 0
+            }
+    
+    @property
+    def has_comments(self):
+        """آیا این پروژه نظراتی دارد؟"""
+        return self.comments_count > 0
+    
+    @property
+    def comment_engagement_rate(self):
+        """نرخ مشارکت در نظرات (نظرات به ازای هر بازدید - اگر سیستم view tracking داشته باشیم)"""
+        # این محاسبه نیاز به سیستم tracking بازدید دارد
+        # فعلاً یک نسبت ساده برمی‌گردانیم
+        comments = self.comments_count
+        if comments == 0:
+            return 0
+        # فرض می‌کنیم هر پروژه حداقل 100 بازدید دارد (می‌تواند از سیستم analytics واقعی بیاید)
+        estimated_views = max(100, comments * 10)  
+        return round((comments / estimated_views) * 100, 2)
+
+
 
     class Meta(BaseModel.Meta):
         verbose_name = "پروژه"
