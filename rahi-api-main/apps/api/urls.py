@@ -8,4 +8,5 @@ urlpatterns = [
     path("public/", include("apps.public.api.urls")),
     path("project/", include("apps.project.api.urls")),
     path("community/", include("apps.community.api.urls")),
+    path("comments/", include("apps.comments.api.urls")),
 ]
