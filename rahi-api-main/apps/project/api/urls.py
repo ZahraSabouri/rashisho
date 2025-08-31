@@ -2,7 +2,7 @@ from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
 from apps.project import reports
-from apps.project.api.views import project, team
+from apps.project.api.views import project, team, tag
 
 app_name = "project"
 
@@ -21,6 +21,7 @@ router.register("final-rep-info", project.FinalRepInfoV2, "final-rep-info")
 router.register("home-projects", project.HomePageProjectViewSet, "home-projects")
 router.register("admin-team-create", team.AdminTeamCreationVS, "admin-team-create")
 router.register("proposal-info", project.ProposalInfoVS, "proposal-info")
+router.register("tags", tag.TagViewSet, "tags")
 
 urlpatterns = [
     path("my-team/", team.MyTeamAPV.as_view(), name="my-team"),
@@ -36,5 +37,7 @@ urlpatterns = [
     path("is-team-head/", project.IsTeamHeadAV.as_view(), name="is-team-head"),
     path("task/list", project.ProjectTasksListAV.as_view(), name="tasks-list"),
     path("user-in-same-project/<uuid:id>/", team.UserInSameProjectAV.as_view(), name="user-in-same-project"),
+    path("project/<uuid:project_id>/tags/", tag.ProjectTagManagementView.as_view(), name="project-tags"),
+    path("project/<uuid:project_id>/related/", tag.RelatedProjectsView.as_view(), name="related-projects"),
     path("", include(router.urls)),
 ]
