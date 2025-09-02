@@ -50,6 +50,7 @@ LOCAL_APPS = [
     "apps.public",
     "apps.project",
     "apps.community",
+    'apps.comments',
 ]
 
 EXTERNAL_APPS = [
@@ -173,5 +174,20 @@ CACHES = {
     "default": {
         "BACKEND": "django.core.cache.backends.redis.RedisCache",
         "LOCATION": env.str("REDIS"),
+        "TIMEOUT": 300,
     }
 }
+
+# تنظیمات مخصوص سیستم نظرات
+COMMENTS_SETTINGS = {
+    'MIN_CONTENT_LENGTH': 5,
+    'MAX_CONTENT_LENGTH': 2000,
+    'EDIT_TIME_LIMIT': 900,  # 15 minutes in seconds
+    'AUTO_APPROVE_OLD_COMMENTS': True,
+    'OLD_COMMENT_THRESHOLD_DAYS': 7,
+    'CACHE_TIMEOUT': 300,  # 5 minutes
+    'ENABLE_EMAIL_NOTIFICATIONS': False,  # Future feature
+    'MAX_REPLY_DEPTH': 1,  # Only one level of replies
+    'PROFANITY_FILTER_ENABLED': False,  # Future feature
+    }
+

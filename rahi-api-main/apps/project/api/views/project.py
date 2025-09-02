@@ -6,6 +6,7 @@ import xlsxwriter
 from django.db.models import Prefetch, ProtectedError
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
+from django.core.cache import cache
 from rest_framework import status, views
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
@@ -26,79 +27,88 @@ from apps.project.services import allocate_project, generate_project_unique_code
 class ProjectViewSet(ModelViewSet):
     serializer_class = serializers.ProjectSerializer
     queryset = models.Project.objects.all().prefetch_related(
-        Prefetch("project_task", queryset=models.Task.objects.filter(is_active=True)), "project_scenario"
+        Prefetch("project_task", queryset=models.Task.objects.filter(is_active=True)), 
+        "project_scenario",
+        "tags",
+        "study_fields"
     )
 
     permission_classes = [IsAdminOrReadOnlyPermission]
     filterset_class = project.ProjectFilterSet
     ordering_fields = "__all__"
 
+    def get_queryset(self):
+        """Filter queryset based on user role and project status"""
+        qs = super().get_queryset()
+        
+        # For regular users, show all projects but mark inactive ones
+        if hasattr(self.request.user, 'role'):
+            if self.request.user.role == 1:  # Regular user
+                # Show all visible projects, both active and inactive
+                qs = qs.filter(visible=True)
+            elif self.request.user.role == 2:  # Admin
+                # Show all projects for admins
+                pass
+        else:
+            # Anonymous users only see active, visible projects
+            qs = qs.filter(visible=True, is_active=True)
+            
+        return qs
+
     def get_serializer_class(self):
+        """Use appropriate serializer based on user role"""
         if isinstance(self.request.user, User):
             if self.request.user.role == 1:
                 return serializers.UserProjectSerializer
         return super().get_serializer_class()
 
     def perform_create(self, serializer):
+        """Enhanced project creation with proper validation"""
         study_fields = self.request.data.getlist("study_fields[]", [])
 
         if not study_fields:
             raise ValidationError("رشته های تحصیلی را وارد کنید!")
 
-        valid_study_field = [str(field.id) for field in models.StudyField.objects.all()]
-        final_study_fields = []
-
-        for study_field in study_fields:
-            if study_field not in valid_study_field:
-                new_field = models.StudyField.objects.create(title=study_field)
-                final_study_fields.append(new_field.id)
-            else:
-                final_study_fields.append(study_field)
-
-        code = generate_project_unique_code()
-        created_project = serializer.save(code=code)
-        created_project.study_fields.add(*final_study_fields)
+        # Projects are active by default
+        serializer.save()
+        
+        # Clear related caches
+        cache.delete_many([
+            'active_projects_list',
+            'project_status_stats',
+            'homepage_projects'
+        ])
 
     def perform_update(self, serializer):
-        image = self.request.data.get("image", None)
-        video = self.request.data.get("video", None)
-        file = self.request.data.get("file", None)
-        is_video_deleted = self.request.data.get("is_video_deleted", False)
+        """Clear caches after project update"""
+        serializer.save()
+        
+        # Clear related caches
+        cache.delete_many([
+            'active_projects_list', 
+            'project_status_stats',
+            'homepage_projects'
+        ])
 
-        valid_study_field = [str(field.id) for field in models.StudyField.objects.all()]
-        final_study_fields = []
+    # def perform_destroy(self, instance):
+    #     try:
+    #         models.Task.objects.filter(project=instance).delete()
+    #         models.Scenario.objects.filter(project=instance).delete()
+    #         super().perform_destroy(instance)
 
-        if image or video or file:
-            study_fields = self.request.data.getlist("study_fields[]", [])
-
-        else:
-            study_fields = self.request.data.get("study_fields", None)
-
-        if not study_fields:
-            raise ValidationError("رشته های تحصیلی را وارد کنید!")
-
-        for study_field in study_fields:
-            if study_field not in valid_study_field:
-                new_field = models.StudyField.objects.create(title=study_field)
-                final_study_fields.append(new_field.id)
-            else:
-                final_study_fields.append(study_field)
-
-        updated_project = serializer.save()
-        if is_video_deleted:
-            updated_project.video = None
-            updated_project.save()
-
-        updated_project.study_fields.set(final_study_fields)
+    #     except ProtectedError:
+    #         raise ValidationError({"message": "قابلیت حذف وجود ندارد چون این پروژه در قسمت های دیگر استفاده شده است!"})
 
     def perform_destroy(self, instance):
-        try:
-            models.Task.objects.filter(project=instance).delete()
-            models.Scenario.objects.filter(project=instance).delete()
-            super().perform_destroy(instance)
-
-        except ProtectedError:
-            raise ValidationError({"message": "قابلیت حذف وجود ندارد چون این پروژه در قسمت های دیگر استفاده شده است!"})
+        """Clear caches after project deletion"""
+        super().perform_destroy(instance)
+        
+        # Clear related caches
+        cache.delete_many([
+            'active_projects_list',
+            'project_status_stats', 
+            'homepage_projects'
+        ])    
 
     @action(methods=["get"], detail=False, serializer_class=serializers.ProjectListSerializer)
     def projects_list(self, request, *args, **kwargs):
@@ -189,6 +199,44 @@ class ProjectViewSet(ModelViewSet):
             }
         )
 
+    @action(detail=False, methods=['get'])
+    def active_projects(self, request):
+        """Get only active projects - cached endpoint"""
+        cache_key = 'active_projects_list'
+        cached_data = cache.get(cache_key)
+        
+        if cached_data is None:
+            active_projects = self.get_queryset().filter(
+                is_active=True, 
+                visible=True
+            )
+            
+            # Use pagination
+            page = self.paginate_queryset(active_projects)
+            if page is not None:
+                serializer = self.get_serializer(page, many=True)
+                cached_data = self.get_paginated_response(serializer.data).data
+                cache.set(cache_key, cached_data, 1800)  # Cache for 30 minutes
+                return self.get_paginated_response(serializer.data)
+            
+            serializer = self.get_serializer(active_projects, many=True)
+            cached_data = serializer.data
+            cache.set(cache_key, cached_data, 1800)
+        
+        return Response(cached_data)
+
+    @action(detail=False, methods=['get'], permission_classes=[IsAdminOrReadOnlyPermission])
+    def inactive_projects(self, request):
+        """Get inactive projects - admin only"""
+        inactive_projects = self.get_queryset().filter(is_active=False)
+        
+        page = self.paginate_queryset(inactive_projects)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        
+        serializer = self.get_serializer(inactive_projects, many=True)
+        return Response(serializer.data)
 
 class ProjectPriorityViewSet(ModelViewSet):
     serializer_class = serializers.ProjectPrioritySerializer
@@ -420,9 +468,23 @@ class ProjectDerivativesVS(ModelViewSet):
 
 
 class HomePageProjectViewSet(mixins.ListModelMixin, GenericViewSet):
+    """Updated homepage projects - only shows active projects"""
     serializer_class = serializers.HomePageProjectSerializer
-    queryset = models.Project.objects.filter(visible=True)
+    queryset = models.Project.objects.filter(visible=True, is_active=True)  # UPDATED
     permission_classes = [AllowAny]
+
+    def list(self, request, *args, **kwargs):
+        """Cached homepage project list"""
+        cache_key = 'homepage_projects'
+        cached_data = cache.get(cache_key)
+        
+        if cached_data is None:
+            response = super().list(request, *args, **kwargs)
+            cached_data = response.data
+            cache.set(cache_key, cached_data, 3600)  # Cache for 1 hour
+            return response
+        
+        return Response(cached_data)
 
 
 class UserScenarioTaskFileAPV(views.APIView):
