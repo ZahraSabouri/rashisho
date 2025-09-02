@@ -102,7 +102,7 @@ class Project(BaseModel):
     study_fields = models.ManyToManyField(StudyField, verbose_name="رشته های تحصیلی")
     description = models.TextField(verbose_name="توضیحات")
     video = models.FileField(null=True, upload_to="project/videos", verbose_name="ویدئو", blank=True)
-    visible = models.BooleanField(default=True, verbose_name="نمایش در صفحه اصلی")
+    visible = models.BooleanField("قابل مشاهده", default=True, help_text="پروژه برای کاربران قابل مشاهده باشد")
     file = models.FileField(upload_to="project/files", null=True, blank=True, verbose_name="فایل")
     telegram_id = models.CharField(max_length=255, null=True, verbose_name="آدرس تلگرام")
 
@@ -113,7 +113,12 @@ class Project(BaseModel):
         verbose_name="کلیدواژه ها",
         help_text="کلیدواژه‌های مرتبط با این پروژه برای بهتر یافت شدن و پیشنهاد پروژه‌های مرتبط"
     )
-
+    is_active = models.BooleanField(
+        "فعال", 
+        default=True,
+        help_text="وضعیت فعال/غیرفعال پروژه. پروژه‌های غیرفعال قابل انتخاب نیستند اما مشاهده می‌شوند."
+    )
+    
     
     @property 
     def comments_count(self):
@@ -185,9 +190,88 @@ class Project(BaseModel):
     class Meta(BaseModel.Meta):
         verbose_name = "پروژه"
         verbose_name_plural = "پروژه ها"
+        indexes = [
+            models.Index(fields=['is_active', 'visible']),
+            models.Index(fields=['created_at']),
+        ]
 
-    def __str__(self):
-        return self.title
+    def clean(self):
+        """Validate project data"""
+        super().clean()
+        if self.start_date and self.end_date:
+            if self.start_date >= self.end_date:
+                raise ValidationError("تاریخ شروع باید کمتر از تاریخ پایان باشد")
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        if not self.code:
+            from apps.project.services import generate_project_unique_code
+            self.code = generate_project_unique_code()
+        super().save(*args, **kwargs)
+
+    @property
+    def can_be_selected(self):
+        """Check if project can be selected by users"""
+        return self.visible and self.is_active
+
+    @property
+    def status_display(self):
+        """Return user-friendly status"""
+        if not self.visible:
+            return "مخفی"
+        elif not self.is_active:
+            return "غیرفعال"
+        else:
+            return "فعال"
+
+    @property
+    def tags_list(self):
+        """Return list of tag names"""
+        return [tag.name for tag in self.tags.all()]
+
+    def get_related_projects(self, limit=5):
+        """Find related projects based on shared tags"""
+        if not self.tags.exists():
+            return self.__class__.objects.none()
+        
+        return self.__class__.objects.filter(
+            tags__in=self.tags.all(),
+            visible=True,
+            is_active=True  # Only show active projects in recommendations
+        ).exclude(
+            id=self.id
+        ).annotate(
+            shared_tags_count=models.Count('tags', filter=models.Q(tags__in=self.tags.all()))
+        ).filter(
+            shared_tags_count__gt=0
+        ).order_by('-shared_tags_count')[:limit]
+
+    @property
+    def status_display(self):
+        """Return user-friendly status"""
+        if not self.visible:
+            return "مخفی"
+        elif not self.is_active:
+            return "غیرفعال"
+        else:
+            return "فعال"
+
+    def activate(self):
+        """Activate the project"""
+        self.is_active = True
+        self.save(update_fields=['is_active'])
+
+    def deactivate(self):
+        """Deactivate the project"""
+        self.is_active = False
+        self.save(update_fields=['is_active'])
+
+    # def __str__(self):
+    #     return self.title
+
+    def __str__(self) -> str:
+        status_emoji = "✅" if self.is_active else "❌"
+        return f"{status_emoji} {self.title}"
     
     def get_related_projects(self, limit=6):
         """Get projects with shared tags"""
