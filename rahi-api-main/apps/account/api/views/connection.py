@@ -71,6 +71,7 @@ class ConnectionDecisionAV(APIView):
     """
     permission_classes = [permissions.IsAuthenticated]
 
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.service = ConnectionService()
