@@ -115,6 +115,8 @@ class ProjectSerializer(serializers.ModelSerializer):
     has_comments = serializers.ReadOnlyField()
     latest_comments = serializers.SerializerMethodField()
     comment_stats = serializers.SerializerMethodField()
+    status_display = serializers.CharField(read_only=True)
+    can_be_selected = serializers.BooleanField(read_only=True)
 
     class Meta:
         model = models.Project
@@ -123,52 +125,44 @@ class ProjectSerializer(serializers.ModelSerializer):
                    'has_comments',
                    'latest_comments',
                    'comment_stats']
+        read_only_fields = ['code', 'status_display', 'can_be_selected']
 
     def create(self, validated_data):
-        # Extract tag_ids and study_fields_ids before creating project
+        # Extract tag_ids before creating project
         tag_ids = validated_data.pop('tag_ids', [])
         study_fields_ids = self.context.get('study_fields_ids', [])
         
-        # Create the project
+        # Create the project (is_active defaults to True)
         project = super().create(validated_data)
         
-        # Set study fields (your existing logic)
+        # Set study fields
         if study_fields_ids:
             project.study_fields.set(study_fields_ids)
         
-        # ADD THIS: Set tags
+        # Set tags
         if tag_ids:
-            # Validate that all tag IDs exist
-            existing_tags = models.Tag.objects.filter(id__in=tag_ids)
-            if existing_tags.count() != len(tag_ids):
-                # Clean up and raise error
-                project.delete()
-                raise ValidationError("برخی از تگ‌های انتخاب شده معتبر نیستند")
-            project.tags.set(existing_tags)
+            valid_tags = models.Tag.objects.filter(id__in=tag_ids)
+            if valid_tags.count() != len(tag_ids):
+                raise serializers.ValidationError("برخی از تگ‌های انتخاب شده معتبر نیستند")
+            project.tags.set(valid_tags)
         
         return project
 
     def update(self, instance, validated_data):
-        # Extract tag_ids before updating
+        # Handle tag updates
         tag_ids = validated_data.pop('tag_ids', None)
-        study_fields_ids = self.context.get('study_fields_ids', None)
         
-        # Update the project
+        # Update project fields
         instance = super().update(instance, validated_data)
         
-        # Update study fields if provided (your existing logic)
-        if study_fields_ids is not None:
-            instance.study_fields.set(study_fields_ids)
-        
-        # ADD THIS: Update tags if provided
+        # Update tags if provided
         if tag_ids is not None:
-            if tag_ids:
-                existing_tags = models.Tag.objects.filter(id__in=tag_ids)
-                if existing_tags.count() != len(tag_ids):
-                    raise ValidationError("برخی از تگ‌های انتخاب شده معتبر نیستند")
-                instance.tags.set(existing_tags)
-            else:
-                # Clear all tags if empty list provided
+            if tag_ids:  # If list is not empty
+                valid_tags = models.Tag.objects.filter(id__in=tag_ids)
+                if valid_tags.count() != len(tag_ids):
+                    raise serializers.ValidationError("برخی از تگ‌های انتخاب شده معتبر نیستند")
+                instance.tags.set(valid_tags)
+            else:  # If empty list, clear all tags
                 instance.tags.clear()
         
         return instance
@@ -287,8 +281,14 @@ class UserProjectSerializer(serializers.ModelSerializer):
         rep["image"] = instance.image.url if instance.image else None
         rep["video"] = instance.video.url if instance.video else None
         rep["file"] = instance.file.url if instance.file else None
-
         rep["tags_count"] = instance.tags.count()
+        if not instance.is_active:
+            rep['is_selectable'] = False
+            rep['status_message'] = "این پروژه در حال حاضر غیرفعال است"
+        else:
+            rep['is_selectable'] = True
+            rep['status_message'] = None
+
         return rep
 
 
@@ -424,6 +424,10 @@ class HomePageProjectSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = models.Project
+        fields = [
+            'id', 'title', 'company', 'description', 'image', 
+            'tags', 'study_fields', 'is_active'
+        ]
         exclude = ["deleted", "deleted_at", "created_at", "updated_at"]
 
     def to_representation(self, instance):
