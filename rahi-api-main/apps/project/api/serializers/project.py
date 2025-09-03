@@ -100,6 +100,10 @@ class ProjectDerivativesSerializer(serializers.ModelSerializer):
 
 
 class ProjectSerializer(serializers.ModelSerializer):
+    """
+    Main project serializer with comment integration.
+    Includes comment counts, latest comments, and statistics.
+    """
     project_scenario = ScenarioSerializer(many=True, read_only=True)
     project_task = TaskSerializer(many=True, read_only=True)
     study_fields = StudyFieldSerializer(many=True, read_only=True)
@@ -111,21 +115,21 @@ class ProjectSerializer(serializers.ModelSerializer):
         allow_empty=True,
         help_text="فهرست IDهای تگ‌هایی که می‌خواهید به پروژه اضافه کنید"
     )
+    
+    # Comment-related fields - declared as class attributes
     comments_count = serializers.ReadOnlyField()
     has_comments = serializers.ReadOnlyField()
     latest_comments = serializers.SerializerMethodField()
     comment_stats = serializers.SerializerMethodField()
+    
     status_display = serializers.CharField(read_only=True)
     can_be_selected = serializers.BooleanField(read_only=True)
 
     class Meta:
         model = models.Project
-        exclude = ["deleted", "deleted_at",
-                   'comments_count',
-                   'has_comments',
-                   'latest_comments',
-                   'comment_stats']
-        read_only_fields = ['code', 'status_display', 'can_be_selected']
+        exclude = ["deleted", "deleted_at"]
+        read_only_fields = ['code', 'status_display', 'can_be_selected', 
+                           'comments_count', 'has_comments']
 
     def create(self, validated_data):
         # Extract tag_ids before creating project
@@ -141,32 +145,38 @@ class ProjectSerializer(serializers.ModelSerializer):
         
         # Set tags
         if tag_ids:
-            valid_tags = models.Tag.objects.filter(id__in=tag_ids)
-            if valid_tags.count() != len(tag_ids):
-                raise serializers.ValidationError("برخی از تگ‌های انتخاب شده معتبر نیستند")
-            project.tags.set(valid_tags)
+            # Validate that all tag IDs exist
+            from apps.project.models import ProjectTag
+            existing_tags = ProjectTag.objects.filter(id__in=tag_ids)
+            if existing_tags.count() != len(tag_ids):
+                raise ValidationError("یک یا چند تگ انتخابی معتبر نیست")
+            project.tags.set(tag_ids)
         
         return project
 
     def update(self, instance, validated_data):
         # Handle tag updates
         tag_ids = validated_data.pop('tag_ids', None)
+        study_fields_ids = self.context.get('study_fields_ids', None)
         
-        # Update project fields
+        # Update instance
         instance = super().update(instance, validated_data)
+        
+        # Update study fields if provided
+        if study_fields_ids is not None:
+            instance.study_fields.set(study_fields_ids)
         
         # Update tags if provided
         if tag_ids is not None:
-            if tag_ids:  # If list is not empty
-                valid_tags = models.Tag.objects.filter(id__in=tag_ids)
-                if valid_tags.count() != len(tag_ids):
-                    raise serializers.ValidationError("برخی از تگ‌های انتخاب شده معتبر نیستند")
-                instance.tags.set(valid_tags)
-            else:  # If empty list, clear all tags
-                instance.tags.clear()
+            if tag_ids:  # If not empty list
+                from apps.project.models import ProjectTag
+                existing_tags = ProjectTag.objects.filter(id__in=tag_ids)
+                if existing_tags.count() != len(tag_ids):
+                    raise ValidationError("یک یا چند تگ انتخابی معتبر نیست")
+            instance.tags.set(tag_ids)
         
         return instance
-
+        
     def to_representation(self, instance):
         rep = super().to_representation(instance)
         rep["image"] = instance.image.url if instance.image else None
@@ -185,32 +195,30 @@ class ProjectSerializer(serializers.ModelSerializer):
                 format_comment_for_display(comment, self.context.get('request', {}).user)
                 for comment in comments
             ]
-        except:
+        except Exception:
             return []
     
     def get_comment_stats(self, obj):
         """دریافت آمار کلی نظرات"""
-        return obj.get_comment_statistics()
+        try:
+            return obj.get_comment_statistics()
+        except Exception:
+            return {}
 
 # apps/project/api/serializers/project.py
 
 class ProjectDetailSerializer(ProjectSerializer):
-    """سریالایزر جزئیات پروژه با اطلاعات کامل نظرات"""
+    """
+    Detailed project serializer with additional comment data for project detail pages.
+    Includes recent comments and top-rated comments.
+    """
     
     recent_comments = serializers.SerializerMethodField()
     top_comments = serializers.SerializerMethodField()
     
-    class Meta:
-        model = models.Project
-        # Use explicit field list instead of trying to inherit from exclude
-        fields = [
-            'id', 'title', 'description', 'company', 'leader',
-            'image', 'video', 'file', 'visible', 'created_at', 'updated_at',
-            'project_scenario', 'project_task', 'study_fields', 'tags', 'tag_ids',
-            'comments_count', 'has_comments', 'latest_comments', 'comment_stats',
-            'recent_comments', 'top_comments'  # Add your new fields
-        ]
-        # Or alternatively, keep the parent's exclude and handle the new fields in methods
+    class Meta(ProjectSerializer.Meta):
+        # Inherit from parent but don't override exclude/fields
+        pass
     
     def get_recent_comments(self, obj):
         """نظرات اخیر برای صفحه جزئیات"""
@@ -221,7 +229,7 @@ class ProjectDetailSerializer(ProjectSerializer):
                 format_comment_for_display(comment, self.context.get('request', {}).user)
                 for comment in comments
             ]
-        except:
+        except Exception:
             return []
     
     def get_top_comments(self, obj):
@@ -243,7 +251,7 @@ class ProjectDetailSerializer(ProjectSerializer):
                 format_comment_for_display(comment, self.context.get('request', {}).user)
                 for comment in top_comments
             ]
-        except:
+        except Exception:
             return []
 
 class UserProjectSerializer(serializers.ModelSerializer):
@@ -428,7 +436,6 @@ class HomePageProjectSerializer(serializers.ModelSerializer):
             'id', 'title', 'company', 'description', 'image', 
             'tags', 'study_fields', 'is_active'
         ]
-        exclude = ["deleted", "deleted_at", "created_at", "updated_at"]
 
     def to_representation(self, instance):
         rep = super().to_representation(instance)

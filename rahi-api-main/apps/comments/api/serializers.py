@@ -4,6 +4,9 @@ from django.utils import timezone
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
 
+from drf_spectacular.utils import extend_schema_field
+from typing import Dict, Any, List
+
 from apps.comments.models import Comment, CommentReaction, CommentModerationLog
 from apps.common.serializers import CustomSlugRelatedField
 
@@ -55,51 +58,56 @@ class CommentSerializer(serializers.ModelSerializer):
         model = Comment
         fields = [
             'id', 'content', 'status', 'user', 'created_at', 'updated_at',
-            'likes_count', 'dislikes_count', 'replies_count', 'parent',
-            'replies', 'user_reaction', 'is_editable', 'content_type_name',
-            # Write-only fields
-            'content_type', 'object_id', 'parent_id'
-        ]
-        read_only_fields = [
-            'id', 'user', 'status', 'likes_count', 'dislikes_count', 
-            'replies_count', 'created_at', 'updated_at', 'parent'
+            'likes_count', 'dislikes_count', 'replies_count', 'parent_id',
+            'user_reaction', 'is_editable', 'content_type_name', 'replies',
+            'object_id', 'content_type'
         ]
     
-    def get_replies(self, obj):
-        """Get approved replies for this comment"""
-        if obj.parent is None:  # Only show replies for top-level comments
-            replies = obj.replies.filter(status='APPROVED').order_by('created_at')
-            return CommentReplySerializer(replies, many=True, context=self.context).data
-        return []
-    
-    def get_user_reaction(self, obj):
-        """Get current user's reaction to this comment"""
-        request = self.context.get('request')
-        if not request or not request.user.is_authenticated:
-            return None
+    @extend_schema_field(serializers.ListSerializer(child=serializers.DictField()))
+    def get_replies(self, obj) -> List[Dict[str, Any]]:
+        """Get comment replies (returns empty for replies to avoid deep nesting)"""
+        if obj.parent is not None:
+            return []  # Replies don't show nested replies
         
         try:
-            reaction = CommentReaction.objects.get(comment=obj, user=request.user)
-            return reaction.reaction_type
-        except CommentReaction.DoesNotExist:
-            return None
+            from apps.comments.utils import format_comment_for_display
+            replies = obj.replies.filter(status='APPROVED').order_by('created_at')[:5]
+            return [
+                format_comment_for_display(reply, self.context.get('request', {}).user)
+                for reply in replies
+            ]
+        except Exception:
+            return []
     
-    def get_is_editable(self, obj):
-        """Check if current user can edit this comment"""
+    @extend_schema_field(serializers.CharField())
+    def get_user_reaction(self, obj) -> str:
+        """Get current user's reaction to this comment"""
         request = self.context.get('request')
-        if not request or not request.user.is_authenticated:
-            return False
+        if not request or not hasattr(request, 'user') or not request.user.is_authenticated:
+            return 'none'
         
-        # Owner can edit within 15 minutes, admins can always edit
-        if request.user == obj.user:
-            time_diff = timezone.now() - obj.created_at
-            return time_diff.total_seconds() < 900  # 15 minutes
-        
-        return hasattr(request.user, 'role') and request.user.role == 0  # Admin
+        try:
+            from apps.comments.models import CommentReaction
+            reaction = CommentReaction.objects.filter(
+                comment=obj, 
+                user=request.user
+            ).first()
+            return reaction.reaction_type if reaction else 'none'
+        except Exception:
+            return 'none'
     
-    def get_content_type_name(self, obj):
-        """Get readable name of the content type"""
-        return obj.content_type.model if obj.content_type else None
+    @extend_schema_field(serializers.BooleanField())
+    def get_is_editable(self, obj) -> bool:
+        """Check if comment is editable by current user"""
+        request = self.context.get('request')
+        if not request or not hasattr(request, 'user'):
+            return False
+        return obj.can_edit(request.user)
+    
+    @extend_schema_field(serializers.CharField())
+    def get_content_type_name(self, obj) -> str:
+        """Get content type name for the commented object"""
+        return obj.content_type.model if obj.content_type else ''
     
     def validate_content(self, value):
         """Validate comment content"""
