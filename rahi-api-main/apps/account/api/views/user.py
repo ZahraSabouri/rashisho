@@ -1,3 +1,12 @@
+from datetime import datetime, timezone
+import jwt
+
+from drf_spectacular.utils import extend_schema
+
+from apps.utils.test_tokens import generate_test_token, decode_test_token
+from apps.api.roles import Roles
+from apps.account.models import User
+
 from django.contrib.auth import get_user_model
 from django.db import transaction
 from rest_framework import status
@@ -20,37 +29,54 @@ from apps.utils.test_tokens import generate_test_token, decode_test_token
 from apps.api.roles import Roles
 from apps.account.models import User
 
-@api_view(['GET'])
+from datetime import datetime, timezone
+import jwt
+from django.conf import settings
+from django.contrib.auth.models import Group
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny
+from rest_framework.response import Response
+from drf_spectacular.utils import extend_schema
+
+from apps.utils.test_tokens import generate_test_token, decode_test_token
+from apps.api.roles import Roles
+from apps.account.models import User
+
+
+def _ttl_fields_from_token(token: str) -> dict:
+    """Return {'expires_at': <unix ts>, 'ttl_seconds': <int>} without verifying signature."""
+    payload = jwt.decode(token, options={"verify_signature": False})
+    exp = payload.get("exp")
+    now = int(datetime.now(timezone.utc).timestamp())
+    return {"expires_at": exp, "ttl_seconds": (exp - now) if exp else None}
+
+
+# --- USER TOKEN ---
+@extend_schema(tags=["DEV Tools"], description="Generate a development USER token (DEBUG only).")
+@api_view(["GET"])
 @permission_classes([AllowAny])
 def dev_user_token_view(request):
-    """Generate test USER token for frontend development - DEV ONLY"""
     if not settings.DEBUG:
         return Response({"error": "Only available in DEBUG mode"}, status=403)
-    
+
     token = generate_test_token()
     user_id = decode_test_token(token)
-    
-    # Create regular user if doesn't exist (using user_info__id lookup)
-    user, created = User.objects.get_or_create(
-        user_info__id=user_id,  # Fixed: use user_info__id instead of user_id
+
+    user, _ = User.objects.get_or_create(
+        user_info__id=user_id,
         defaults={
-            'username': f'user_{user_id[:8]}',
-            'email': f'user_{user_id[:8]}@test.com',
-            'user_info': {
-                'id': user_id,
-                'first_name': f'User{user_id[:4]}',
-                'last_name': 'Test',
-                'national_id': None,
-                'mobile_number': f'0912345{user_id[:4]}'
-            }
-        }
+            "username": f"user_{user_id[:8]}",
+            "email": f"user_{user_id[:8]}@test.com",
+            "user_info": {
+                "id": user_id, "first_name": f"User{user_id[:4]}", "last_name": "Test",
+                "national_id": None, "mobile_number": f"0912345{user_id[:4]}",
+            },
+        },
     )
-    
-    # Assign regular user role
+
     user_role, _ = Group.objects.get_or_create(name=Roles.user.name)
-    user.groups.clear()  # Clear any existing roles
-    user.groups.add(user_role)
-    
+    user.groups.set([user_role])
+
     return Response({
         "token": token,
         "usage": f"Bearer {token}",
@@ -58,51 +84,48 @@ def dev_user_token_view(request):
         "user_id": user_id,
         "username": user.username,
         "full_name": user.full_name,
-        "note": "This token has regular user privileges"
+        **_ttl_fields_from_token(token),   # <— TTL/expiry
     })
 
-@api_view(['GET'])
+
+# --- ADMIN TOKEN ---
+@extend_schema(tags=["DEV Tools"], description="Generate a development ADMIN token (DEBUG only).")
+@api_view(["GET"])
 @permission_classes([AllowAny])
 def dev_admin_token_view(request):
-    """Generate test ADMIN token for frontend development - DEV ONLY"""
     if not settings.DEBUG:
         return Response({"error": "Only available in DEBUG mode"}, status=403)
-    
+
     token = generate_test_token()
     user_id = decode_test_token(token)
-    
-    # Create admin user if doesn't exist (using user_info__id lookup)
-    user, created = User.objects.get_or_create(
-        user_info__id=user_id,  # Fixed: use user_info__id instead of user_id
+
+    user, _ = User.objects.get_or_create(
+        user_info__id=user_id,
         defaults={
-            'username': f'admin_{user_id[:8]}',
-            'email': f'admin_{user_id[:8]}@test.com',
-            'is_staff': True,
-            'is_superuser': True,
-            'user_info': {
-                'id': user_id,
-                'first_name': f'Admin{user_id[:4]}',
-                'last_name': 'Test',
-                'national_id': None,
-                'mobile_number': f'0911234{user_id[:4]}'
-            }
-        }
+            "username": f"admin_{user_id[:8]}",
+            "email": f"admin_{user_id[:8]}@test.com",
+            "is_staff": True,
+            "is_superuser": True,
+            "user_info": {
+                "id": user_id, "first_name": f"Admin{user_id[:4]}", "last_name": "Test",
+                "national_id": None, "mobile_number": f"0911234{user_id[:4]}",
+            },
+        },
     )
-    
-    # Assign admin role
+
     admin_role, _ = Group.objects.get_or_create(name=Roles.sys_god.name)
-    user.groups.clear()  # Clear any existing roles
-    user.groups.add(admin_role)
-    
+    user.groups.set([admin_role])
+
     return Response({
         "token": token,
         "usage": f"Bearer {token}",
-        "role": "admin", 
+        "role": "admin",
         "user_id": user_id,
         "username": user.username,
         "full_name": user.full_name,
-        "note": "This token has admin privileges"
+        **_ttl_fields_from_token(token),   # <— TTL/expiry
     })
+
 
 class MeAV(RetrieveUpdateAPIView):
     serializer_class = serializer.MeSerializer

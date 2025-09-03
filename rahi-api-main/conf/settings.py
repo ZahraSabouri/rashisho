@@ -156,6 +156,19 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 AUTH_USER_MODEL = "account.User"
 
 from conf.apps_settings.drf import REST_FRAMEWORK
+from conf.apps_settings.drf import SPECTACULAR_SETTINGS
+
+if DEBUG:
+    SPECTACULAR_SETTINGS.setdefault("TITLE", "Rahisho API (DEV)")
+    SPECTACULAR_SETTINGS.setdefault(
+        "DESCRIPTION",
+        "⚠️ **Development Mode** — The “DEV Tools” endpoints are for local testing only.",
+    )
+    # Ensure the tag shows with a short description
+    tags = SPECTACULAR_SETTINGS.get("TAGS", [])
+    tags.append({"name": "DEV Tools", "description": "Development-only helpers (visible in DEBUG)."})
+    SPECTACULAR_SETTINGS["TAGS"] = tags
+
 from conf.apps_settings.sso import (
     CLIENT_ID,
     CLIENT_SECRET,

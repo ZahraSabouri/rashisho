@@ -16,7 +16,7 @@ REST_FRAMEWORK = {
 # drf-spectacular settings
 SPECTACULAR_SETTINGS = {
     'TITLE': 'Rahisho API',
-    'DESCRIPTION': 'راهی شو - پلتفرم ملی مسابقات مبتنی بر مسئله',
+    # 'DESCRIPTION': 'راهی شو - پلتفرم ملی مسابقات مبتنی بر مسئله',
     'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
     
