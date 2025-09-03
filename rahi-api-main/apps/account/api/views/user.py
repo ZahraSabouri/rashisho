@@ -12,23 +12,96 @@ from apps.account.services import get_sso_user_info
 from apps.api.permissions import IsSysgod
 
 from django.conf import settings
+from django.contrib.auth.models import Group
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
-from apps.utils.test_tokens import generate_test_token
-
+from rest_framework.response import Response
+from apps.utils.test_tokens import generate_test_token, decode_test_token
+from apps.api.roles import Roles
+from apps.account.models import User
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
-def dev_token_view(request):
-    """Generate test token for development - DEV ONLY"""
+def dev_user_token_view(request):
+    """Generate test USER token for frontend development - DEV ONLY"""
     if not settings.DEBUG:
         return Response({"error": "Only available in DEBUG mode"}, status=403)
     
     token = generate_test_token()
+    user_id = decode_test_token(token)
+    
+    # Create regular user if doesn't exist (using user_info__id lookup)
+    user, created = User.objects.get_or_create(
+        user_info__id=user_id,  # Fixed: use user_info__id instead of user_id
+        defaults={
+            'username': f'user_{user_id[:8]}',
+            'email': f'user_{user_id[:8]}@test.com',
+            'user_info': {
+                'id': user_id,
+                'first_name': f'User{user_id[:4]}',
+                'last_name': 'Test',
+                'national_id': None,
+                'mobile_number': f'0912345{user_id[:4]}'
+            }
+        }
+    )
+    
+    # Assign regular user role
+    user_role, _ = Group.objects.get_or_create(name=Roles.user.name)
+    user.groups.clear()  # Clear any existing roles
+    user.groups.add(user_role)
+    
     return Response({
-        "token": token, 
+        "token": token,
         "usage": f"Bearer {token}",
-        "note": "Use this token in Authorization header for API calls"
+        "role": "user",
+        "user_id": user_id,
+        "username": user.username,
+        "full_name": user.full_name,
+        "note": "This token has regular user privileges"
+    })
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def dev_admin_token_view(request):
+    """Generate test ADMIN token for frontend development - DEV ONLY"""
+    if not settings.DEBUG:
+        return Response({"error": "Only available in DEBUG mode"}, status=403)
+    
+    token = generate_test_token()
+    user_id = decode_test_token(token)
+    
+    # Create admin user if doesn't exist (using user_info__id lookup)
+    user, created = User.objects.get_or_create(
+        user_info__id=user_id,  # Fixed: use user_info__id instead of user_id
+        defaults={
+            'username': f'admin_{user_id[:8]}',
+            'email': f'admin_{user_id[:8]}@test.com',
+            'is_staff': True,
+            'is_superuser': True,
+            'user_info': {
+                'id': user_id,
+                'first_name': f'Admin{user_id[:4]}',
+                'last_name': 'Test',
+                'national_id': None,
+                'mobile_number': f'0911234{user_id[:4]}'
+            }
+        }
+    )
+    
+    # Assign admin role
+    admin_role, _ = Group.objects.get_or_create(name=Roles.sys_god.name)
+    user.groups.clear()  # Clear any existing roles
+    user.groups.add(admin_role)
+    
+    return Response({
+        "token": token,
+        "usage": f"Bearer {token}",
+        "role": "admin", 
+        "user_id": user_id,
+        "username": user.username,
+        "full_name": user.full_name,
+        "note": "This token has admin privileges"
     })
 
 class MeAV(RetrieveUpdateAPIView):

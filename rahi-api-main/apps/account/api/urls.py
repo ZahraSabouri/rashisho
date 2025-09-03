@@ -15,6 +15,7 @@ urlpatterns = [
     path("connections/request", connection.ConnectionRequestAV.as_view(), name="connection-request"),
     path("connections/pending", connection.PendingConnectionsAV.as_view(), name="connection-pending-list"),
     path("connections/<int:id>/decision", connection.ConnectionDecisionAV.as_view(), name="connection-decision"),
-    # DEV: Token generation endpoint
-    path("dev-token/", user.dev_token_view, name="dev-token"),
+    # DEV: Token generation endpoints
+    path("dev-user-token/", user.dev_user_token_view, name="dev-user-token"),
+    path("dev-admin-token/", user.dev_admin_token_view, name="dev-admin-token"),
 ]
