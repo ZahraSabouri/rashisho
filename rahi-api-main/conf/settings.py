@@ -43,6 +43,7 @@ INSTALLED_APPS = [
 ]
 
 LOCAL_APPS = [
+    "apps.api",           # ← ADD THIS so AppConfig.ready() runs and registers the extension
     "apps.account",
     "apps.resume",
     "apps.settings",
@@ -50,7 +51,7 @@ LOCAL_APPS = [
     "apps.public",
     "apps.project",
     "apps.community",
-    'apps.comments',
+    "apps.comments",
 ]
 
 EXTERNAL_APPS = [
@@ -164,7 +165,6 @@ if DEBUG:
         "DESCRIPTION",
         "⚠️ **Development Mode** — The “DEV Tools” endpoints are for local testing only.",
     )
-    # Ensure the tag shows with a short description
     tags = SPECTACULAR_SETTINGS.get("TAGS", [])
     tags.append({"name": "DEV Tools", "description": "Development-only helpers (visible in DEBUG)."})
     SPECTACULAR_SETTINGS["TAGS"] = tags
