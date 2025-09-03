@@ -11,6 +11,25 @@ from apps.account.api.serializers import user as serializer
 from apps.account.services import get_sso_user_info
 from apps.api.permissions import IsSysgod
 
+from django.conf import settings
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny
+from apps.utils.test_tokens import generate_test_token
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def dev_token_view(request):
+    """Generate test token for development - DEV ONLY"""
+    if not settings.DEBUG:
+        return Response({"error": "Only available in DEBUG mode"}, status=403)
+    
+    token = generate_test_token()
+    return Response({
+        "token": token, 
+        "usage": f"Bearer {token}",
+        "note": "Use this token in Authorization header for API calls"
+    })
 
 class MeAV(RetrieveUpdateAPIView):
     serializer_class = serializer.MeSerializer
