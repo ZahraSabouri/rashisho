@@ -1,3 +1,4 @@
+from __future__ import annotations
 import datetime
 import re
 
@@ -8,6 +9,56 @@ from rest_framework.response import Response
 from apps.account.models import User
 from apps.project import models
 
+from typing import Iterable, Optional
+from django.db.models import Q
+from django.core.cache import cache
+from django.apps import apps as django_apps
+
+# from apps.project.models import ProjectAllocation
+from apps.settings.models import FeatureActivation
+
+CACHE_TTL = 60  # seconds
+CACHE_PREFIX = "proj_attr_count:" 
+
+
+def _cache_key(project_id) -> str:
+    return f"{CACHE_PREFIX}{project_id}"
+
+
+def invalidate_attractiveness(project_ids: Iterable[str | int]) -> None:
+    """
+    Delete cache entries for all given project IDs.
+    Accepts str/UUID/int; turns them into strings for cache keys.
+    """
+    for pid in project_ids:
+        cache.delete(_cache_key(str(pid)))
+
+def is_selection_phase_active() -> bool:
+    return FeatureActivation.objects.filter(feature="PP", active=True).exists()
+
+def count_project_attractiveness(project_id) -> int:
+    """
+    Count how many participants have selected the project at ANY priority slot.
+    Lazily fetch ProjectAllocation to avoid circular import with models.py
+    """
+    # Lazy import to avoid: models -> services -> models cycle
+    ProjectAllocation = django_apps.get_model("project", "ProjectAllocation")  # <— NEW
+
+    cache_key = f"proj_attr_count:{project_id}"
+    cached: Optional[int] = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    q = (
+        Q(priority__1=str(project_id))
+        | Q(priority__2=str(project_id))
+        | Q(priority__3=str(project_id))
+        | Q(priority__4=str(project_id))
+        | Q(priority__5=str(project_id))
+    )
+    cnt = ProjectAllocation.objects.filter(q).count()
+    cache.set(cache_key, cnt, CACHE_TTL)
+    return cnt
 
 def generate_project_unique_code():
     now = datetime.datetime.now()
