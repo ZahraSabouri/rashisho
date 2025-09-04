@@ -3,7 +3,7 @@ import mimetypes
 import os
 
 import xlsxwriter
-from django.db.models import Prefetch, ProtectedError
+from django.db.models import Prefetch, ProtectedError, Count
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from django.core.cache import cache
@@ -23,6 +23,11 @@ from apps.project.api.serializers import project as serializers
 from apps.project.models import TeamRequest
 from apps.project.services import allocate_project, generate_project_unique_code
 
+from apps.api.pagination import Pagination
+from apps.project.models import Project
+from apps.project.api.serializers.project_list import ProjectAnnotatedListSerializer
+from apps.project.api.filters.project import ProjectFilterSet 
+
 
 class ProjectViewSet(ModelViewSet):
     serializer_class = serializers.ProjectSerializer
@@ -36,6 +41,42 @@ class ProjectViewSet(ModelViewSet):
     permission_classes = [IsAdminOrReadOnlyPermission]
     filterset_class = project.ProjectFilterSet
     ordering_fields = "__all__"
+    @action(detail=False, methods=["get"], url_path="annotated", permission_classes=[AllowAny])
+    def annotated(self, request):
+        """
+        List projects with precomputed counts.
+
+        Query params:
+          - title: icontains filter (already supported by ProjectFilterSet)
+          - study_fields: comma-separated ids (ProjectFilterSet)
+          - ordering: e.g. '-allocations_count', '-tags_count', '-created_at'
+
+        Returns paginated results using apps.api.pagination.Pagination.
+        """
+        # Base queryset (respect your current visibility rules if any)
+        qs = (
+            Project.objects.all()
+            .prefetch_related("tags")    # lightweight prefetch to avoid N+1 in other places
+            .annotate(
+                tags_count=Count("tags", distinct=True),
+                allocations_count=Count("allocations", distinct=True),  # reverse name used across codebase
+            )
+        )
+
+        # Apply existing filterset (same as other project lists)
+        filterset = ProjectFilterSet(request.GET, queryset=qs)
+        qs = filterset.qs
+
+        # Optional ordering: fall back to created_at desc if none provided
+        ordering = request.GET.get("ordering") or "-created_at"
+        qs = qs.order_by(ordering)
+
+        # Pagination consistent with your project style
+        paginator = Pagination()
+        page = paginator.paginate_queryset(qs, request)
+        ser = ProjectAnnotatedListSerializer(page, many=True, context={"request": request})
+        return paginator.get_paginated_response(ser.data)
+
     def get_serializer_context(self):
         """
         Pass study field IDs into the serializer context so it can
