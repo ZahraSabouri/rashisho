@@ -6,15 +6,18 @@ List serializer for Projects with precomputed counts.
 """
 from rest_framework import serializers
 from apps.project.models import Project
-from apps.project.services import count_project_attractiveness, is_selection_phase_active
+from apps.project.services import can_show_attractiveness, count_project_attractiveness, is_selection_phase_active
 
 
 class ProjectAnnotatedListSerializer(serializers.ModelSerializer):
     tags_count = serializers.IntegerField(read_only=True)
     allocations_count = serializers.IntegerField(read_only=True)
 
-    # This one is computed (but cached in services.py)
-    # Only exposed when PP (selection phase) is active.
+    # Phase information
+    current_phase = serializers.CharField(read_only=True)
+    can_be_selected = serializers.BooleanField(read_only=True)
+    
+    # Computed attractiveness per project
     attractiveness = serializers.SerializerMethodField()
 
     class Meta:
@@ -22,10 +25,11 @@ class ProjectAnnotatedListSerializer(serializers.ModelSerializer):
         fields = [
             "id", "title", "code", "company", "leader",
             "tags_count", "allocations_count", "attractiveness",
+            "current_phase", "can_be_selected"
         ]
 
     def get_attractiveness(self, obj):
-        # Hide until the selection phase is active
-        if not is_selection_phase_active():
-            return None
-        return count_project_attractiveness(obj.id)
+        """Show attractiveness if project phase allows it"""
+        if can_show_attractiveness(obj):
+            return count_project_attractiveness(obj.id)
+        return None

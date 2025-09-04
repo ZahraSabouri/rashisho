@@ -1,3 +1,5 @@
+from datetime import timezone
+from pyexpat.errors import messages
 from django.contrib import admin
 from django.db.models import Count
 from django.utils.html import format_html
@@ -61,11 +63,13 @@ class ProjectAdmin(admin.ModelAdmin):
     
     list_display = [
         'title', 'company', 'status_indicator', 'visible', 'is_active', 
-        'tag_count', 'study_field_count', 'allocations_count', 'created_at'
+        'tag_count', 'study_field_count', 'allocations_count', 'created_at',
+        'current_phase_display', 'selection_dates_display',
+        'attractiveness_count'
     ]
     list_filter = [
         ProjectStatusFilter, 'visible', 'is_active', 'study_fields', 
-        'tags', 'created_at', 'company'
+        'tags', 'created_at', 'company', 'selection_phase', 'selection_start', 'selection_end'
     ]
     search_fields = ['title', 'company', 'description', 'leader']
     filter_horizontal = ['study_fields', 'tags']
@@ -79,6 +83,13 @@ class ProjectAdmin(admin.ModelAdmin):
     fieldsets = (
         ('اطلاعات اصلی', {
             'fields': ('title', 'company', 'leader', 'leader_position', 'code')
+        }),
+        ('مدیریت فاز', {
+            'fields': [
+                'selection_phase', 'auto_phase_transition',
+                'selection_start', 'selection_end'
+            ],
+            'classes': ['collapse']
         }),
         ('محتوا و توضیحات', {
             'fields': ('description', 'image', 'video', 'file')
@@ -105,6 +116,105 @@ class ProjectAdmin(admin.ModelAdmin):
         }),
     )
     
+    actions = [
+        'activate_selection_phase',
+        'finish_selection_phase', 
+        'reset_to_before_selection',
+        'enable_auto_transition',
+        'disable_auto_transition'
+    ]
+
+    def current_phase_display(self, obj):
+        """Display current phase with auto-transition indicator"""
+        phase_color = {
+            'BEFORE': '🔴',
+            'ACTIVE': '🟢', 
+            'FINISHED': '🟡'
+        }
+        icon = phase_color.get(obj.current_phase, '⚪')
+        return f"{icon} {obj.phase_display}"
+    current_phase_display.short_description = "فاز فعلی"
+    
+    def selection_dates_display(self, obj):
+        """Display selection start/end dates"""
+        if obj.selection_start and obj.selection_end:
+            start = obj.selection_start.strftime("%m/%d %H:%M")
+            end = obj.selection_end.strftime("%m/%d %H:%M") 
+            return f"{start} - {end}"
+        elif obj.selection_start:
+            return f"شروع: {obj.selection_start.strftime('%m/%d %H:%M')}"
+        elif obj.selection_end:
+            return f"پایان: {obj.selection_end.strftime('%m/%d %H:%M')}"
+        return "-"
+    selection_dates_display.short_description = "تاریخ‌های انتخاب"
+    
+    def attractiveness_count(self, obj):
+        """Show current attractiveness count"""
+        from apps.project.services import count_project_attractiveness
+        if obj.show_attractiveness:
+            return count_project_attractiveness(obj.id)
+        return "-"
+    attractiveness_count.short_description = "جذابیت"
+    
+    # Admin Actions
+    def activate_selection_phase(self, request, queryset):
+        """Activate selection phase for selected projects"""
+        updated = queryset.update(
+            selection_phase=models.ProjectPhase.SELECTION_ACTIVE,
+            selection_start=timezone.now()
+        )
+        self.message_user(
+            request, 
+            f'{updated} پروژه به فاز انتخاب فعال تغییر یافت.',
+            messages.SUCCESS
+        )
+    activate_selection_phase.short_description = "فعال‌سازی فاز انتخاب"
+    
+    def finish_selection_phase(self, request, queryset):
+        """Finish selection phase for selected projects"""
+        updated = queryset.update(
+            selection_phase=models.ProjectPhase.SELECTION_FINISHED,
+            selection_end=timezone.now()
+        )
+        self.message_user(
+            request,
+            f'{updated} پروژه به فاز پایان انتخاب تغییر یافت.',
+            messages.SUCCESS
+        )
+    finish_selection_phase.short_description = "پایان فاز انتخاب"
+    
+    def reset_to_before_selection(self, request, queryset):
+        """Reset projects to before selection phase"""
+        updated = queryset.update(
+            selection_phase=models.ProjectPhase.BEFORE_SELECTION
+        )
+        self.message_user(
+            request,
+            f'{updated} پروژه به فاز قبل از انتخاب بازگردانده شد.',
+            messages.INFO
+        )
+    reset_to_before_selection.short_description = "بازگشت به قبل از انتخاب"
+    
+    def enable_auto_transition(self, request, queryset):
+        """Enable automatic phase transition"""
+        updated = queryset.update(auto_phase_transition=True)
+        self.message_user(
+            request,
+            f'تغییر خودکار فاز برای {updated} پروژه فعال شد.',
+            messages.SUCCESS
+        )
+    enable_auto_transition.short_description = "فعال‌سازی تغییر خودکار فاز"
+    
+    def disable_auto_transition(self, request, queryset):
+        """Disable automatic phase transition"""
+        updated = queryset.update(auto_phase_transition=False)
+        self.message_user(
+            request,
+            f'تغییر خودکار فاز برای {updated} پروژه غیرفعال شد.',
+            messages.INFO
+        )
+    disable_auto_transition.short_description = "غیرفعال‌سازی تغییر خودکار فاز"
+
     def status_indicator(self, obj):
         """Visual status indicator"""
         if not obj.visible:

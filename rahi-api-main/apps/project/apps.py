@@ -5,5 +5,5 @@ class ProjectConfig(AppConfig):
     default_auto_field = "django.db.models.BigAutoField"
     name = "apps.project"
 
-    def ready(self):
-        import apps.project.signals 
+    # def ready(self):
+    #     import apps.project.signals 

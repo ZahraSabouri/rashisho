@@ -1,3 +1,4 @@
+from datetime import timezone
 import filetype
 from django.contrib.auth import get_user_model
 from django.core.validators import MaxValueValidator, MinLengthValidator, MinValueValidator
@@ -91,6 +92,44 @@ def validate_user_task_file_type(value):
     if mime_type not in allowed_types:
         raise ValidationError("نوع فایل غیرمجاز است.")
 
+class ProjectPhase(models.TextChoices):
+    BEFORE_SELECTION = "BEFORE", "قبل از انتخاب"
+    SELECTION_ACTIVE = "ACTIVE", "در حال انتخاب" 
+    SELECTION_FINISHED = "FINISHED", "پایان انتخاب"
+
+
+class ProjectSelection(BaseModel):
+    """
+    Normalized table for tracking user project selections.
+    Replaces complex JSONB queries with simple relational queries.
+    """
+    user = models.ForeignKey(
+        get_user_model(), 
+        on_delete=models.CASCADE, 
+        related_name='project_selections',
+        verbose_name="کاربر"
+    )
+    project = models.ForeignKey(
+        'Project', 
+        on_delete=models.CASCADE, 
+        related_name='selections',
+        verbose_name="پروژه"
+    )
+    priority = models.IntegerField(
+        choices=[(1, '1st'), (2, '2nd'), (3, '3rd'), (4, '4th'), (5, '5th')],
+        verbose_name="اولویت"
+    )
+    
+    class Meta(BaseModel.Meta):
+        unique_together = [
+            ('user', 'priority'),  # User can't select 2 projects for same priority
+            ('user', 'project'),   # User can't select same project twice
+        ]
+        verbose_name = "انتخاب پروژه"
+        verbose_name_plural = "انتخاب‌های پروژه"
+    
+    def __str__(self):
+        return f"{self.user.full_name} - {self.project.title} (اولویت {self.priority})"
 
 class Project(BaseModel):
     code = models.CharField(max_length=300, unique=True, null=True, verbose_name="کد")
@@ -106,7 +145,6 @@ class Project(BaseModel):
     file = models.FileField(upload_to="project/files", null=True, blank=True, verbose_name="فایل")
     # start_date = models.DateField(null=True, blank=True, verbose_name="تاریخ شروع")
     # end_date = models.DateField(null=True, blank=True, verbose_name="تاریخ پایان")
-
     tags = models.ManyToManyField(
         Tag, 
         blank=True, 
@@ -119,8 +157,76 @@ class Project(BaseModel):
         default=True,
         help_text="وضعیت فعال/غیرفعال پروژه. پروژه‌های غیرفعال قابل انتخاب نیستند اما مشاهده می‌شوند."
     )
+    selection_phase = models.CharField(
+        max_length=10,
+        choices=ProjectPhase.choices,
+        default=ProjectPhase.BEFORE_SELECTION,
+        verbose_name="فاز انتخاب"
+    )
+    selection_start = models.DateTimeField(
+        null=True, 
+        blank=True,
+        verbose_name="شروع انتخاب"
+    )
+    selection_end = models.DateTimeField(
+        null=True, 
+        blank=True,
+        verbose_name="پایان انتخاب"
+    )
+    auto_phase_transition = models.BooleanField(
+        default=True,
+        verbose_name="تغییر خودکار فاز",
+        help_text="آیا فاز بر اساس تاریخ شروع و پایان تغییر کند؟"
+    )
     
+    @property
+    def current_phase(self):
+        """
+        Get current phase for this project.
+        Auto-calculates based on dates if auto_phase_transition is True,
+        otherwise uses manual selection_phase.
+        """
+        if self.auto_phase_transition and self.selection_start and self.selection_end:
+            now = timezone.now()
+            if now < self.selection_start:
+                return ProjectPhase.BEFORE_SELECTION
+            elif now <= self.selection_end:
+                return ProjectPhase.SELECTION_ACTIVE
+            else:
+                return ProjectPhase.SELECTION_FINISHED
+        
+        # Use manually set phase
+        return self.selection_phase
     
+    @property
+    def can_be_selected(self):
+        """Can users select this project right now?"""
+        return self.current_phase == ProjectPhase.SELECTION_ACTIVE and self.is_active and self.visible
+    
+    @property
+    def show_attractiveness(self):
+        """Should attractiveness count be shown?"""
+        return self.current_phase in [ProjectPhase.SELECTION_ACTIVE, ProjectPhase.SELECTION_FINISHED]
+    
+    @property
+    def phase_display(self):
+        """Human readable phase status"""
+        phase = self.current_phase
+        if self.auto_phase_transition and self.selection_start and self.selection_end:
+            return f"{ProjectPhase(phase).label} (خودکار)"
+        return ProjectPhase(phase).label
+    
+    def update_phase_if_needed(self):
+        """
+        Update the database phase if auto-transition is enabled and phase changed.
+        Call this periodically or in views to keep DB in sync.
+        """
+        if self.auto_phase_transition:
+            current = self.current_phase
+            if current != self.selection_phase:
+                self.selection_phase = current
+                self.save(update_fields=['selection_phase'])
+
     @property 
     def comments_count(self):
         """تعداد نظرات تایید شده این پروژه"""
