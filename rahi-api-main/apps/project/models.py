@@ -104,7 +104,8 @@ class Project(BaseModel):
     video = models.FileField(null=True, upload_to="project/videos", verbose_name="ویدئو", blank=True)
     visible = models.BooleanField("قابل مشاهده", default=True, help_text="پروژه برای کاربران قابل مشاهده باشد")
     file = models.FileField(upload_to="project/files", null=True, blank=True, verbose_name="فایل")
-    telegram_id = models.CharField(max_length=255, null=True, verbose_name="آدرس تلگرام")
+    # start_date = models.DateField(null=True, blank=True, verbose_name="تاریخ شروع")
+    # end_date = models.DateField(null=True, blank=True, verbose_name="تاریخ پایان")
 
     tags = models.ManyToManyField(
         Tag, 
@@ -198,15 +199,15 @@ class Project(BaseModel):
     def clean(self):
         """Validate project data"""
         super().clean()
-        if self.start_date and self.end_date:
-            if self.start_date >= self.end_date:
-                raise ValidationError("تاریخ شروع باید کمتر از تاریخ پایان باشد")
+        # if self.start_date and self.end_date:
+        #     if self.start_date >= self.end_date:
+        #         raise ValidationError("تاریخ شروع باید کمتر از تاریخ پایان باشد")
 
     def save(self, *args, **kwargs):
-        self.full_clean()
         if not self.code:
             from apps.project.services import generate_project_unique_code
             self.code = generate_project_unique_code()
+        self.full_clean()
         super().save(*args, **kwargs)
 
     @property

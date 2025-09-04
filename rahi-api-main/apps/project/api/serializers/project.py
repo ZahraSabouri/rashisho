@@ -14,6 +14,7 @@ from apps.resume.models import Resume
 from apps.settings.api.serializers.study_field import StudyFieldSerializer
 from apps.project.models import Project
 
+
 class ScenarioSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.Scenario
@@ -115,68 +116,68 @@ class ProjectSerializer(serializers.ModelSerializer):
         allow_empty=True,
         help_text="فهرست IDهای تگ‌هایی که می‌خواهید به پروژه اضافه کنید"
     )
-    
+
     # Comment-related fields - declared as class attributes
     comments_count = serializers.ReadOnlyField()
     has_comments = serializers.ReadOnlyField()
     latest_comments = serializers.SerializerMethodField()
     comment_stats = serializers.SerializerMethodField()
-    
+
     status_display = serializers.CharField(read_only=True)
     can_be_selected = serializers.BooleanField(read_only=True)
 
     class Meta:
         model = models.Project
         exclude = ["deleted", "deleted_at"]
-        read_only_fields = ['code', 'status_display', 'can_be_selected', 
-                           'comments_count', 'has_comments']
+        read_only_fields = ['code', 'status_display', 'can_be_selected',
+                            'comments_count', 'has_comments']
 
     def create(self, validated_data):
         # Extract tag_ids before creating project
         tag_ids = validated_data.pop('tag_ids', [])
         study_fields_ids = self.context.get('study_fields_ids', [])
-        
+
         # Create the project (is_active defaults to True)
         project = super().create(validated_data)
-        
+
         # Set study fields
         if study_fields_ids:
             project.study_fields.set(study_fields_ids)
-        
+
         # Set tags
         if tag_ids:
             # Validate that all tag IDs exist
-            from apps.project.models import ProjectTag
-            existing_tags = ProjectTag.objects.filter(id__in=tag_ids)
+            from apps.project.models import Tag
+            existing_tags = Tag.objects.filter(id__in=tag_ids)
             if existing_tags.count() != len(tag_ids):
                 raise ValidationError("یک یا چند تگ انتخابی معتبر نیست")
             project.tags.set(tag_ids)
-        
+
         return project
 
     def update(self, instance, validated_data):
         # Handle tag updates
         tag_ids = validated_data.pop('tag_ids', None)
         study_fields_ids = self.context.get('study_fields_ids', None)
-        
+
         # Update instance
         instance = super().update(instance, validated_data)
-        
+
         # Update study fields if provided
         if study_fields_ids is not None:
             instance.study_fields.set(study_fields_ids)
-        
+
         # Update tags if provided
         if tag_ids is not None:
             if tag_ids:  # If not empty list
-                from apps.project.models import ProjectTag
-                existing_tags = ProjectTag.objects.filter(id__in=tag_ids)
+                from apps.project.models import Tag
+                existing_tags = Tag.objects.filter(id__in=tag_ids)
                 if existing_tags.count() != len(tag_ids):
                     raise ValidationError("یک یا چند تگ انتخابی معتبر نیست")
             instance.tags.set(tag_ids)
-        
+
         return instance
-        
+
     def to_representation(self, instance):
         rep = super().to_representation(instance)
         rep["image"] = instance.image.url if instance.image else None
@@ -197,13 +198,14 @@ class ProjectSerializer(serializers.ModelSerializer):
             ]
         except Exception:
             return []
-    
+
     def get_comment_stats(self, obj):
         """دریافت آمار کلی نظرات"""
         try:
             return obj.get_comment_statistics()
         except Exception:
             return {}
+
 
 # apps/project/api/serializers/project.py
 
@@ -212,14 +214,14 @@ class ProjectDetailSerializer(ProjectSerializer):
     Detailed project serializer with additional comment data for project detail pages.
     Includes recent comments and top-rated comments.
     """
-    
+
     recent_comments = serializers.SerializerMethodField()
     top_comments = serializers.SerializerMethodField()
-    
+
     class Meta(ProjectSerializer.Meta):
         # Inherit from parent but don't override exclude/fields
         pass
-    
+
     def get_recent_comments(self, obj):
         """نظرات اخیر برای صفحه جزئیات"""
         try:
@@ -231,14 +233,14 @@ class ProjectDetailSerializer(ProjectSerializer):
             ]
         except Exception:
             return []
-    
+
     def get_top_comments(self, obj):
         """نظرات برتر بر اساس تعداد لایک"""
         try:
             from apps.comments.models import Comment
             from apps.comments.utils import format_comment_for_display
             from django.contrib.contenttypes.models import ContentType
-            
+
             content_type = ContentType.objects.get_for_model(models.Project)
             top_comments = Comment.objects.filter(
                 content_type=content_type,
@@ -246,13 +248,14 @@ class ProjectDetailSerializer(ProjectSerializer):
                 status='APPROVED',
                 parent__isnull=True
             ).order_by('-likes_count', '-created_at')[:5]
-            
+
             return [
                 format_comment_for_display(comment, self.context.get('request', {}).user)
                 for comment in top_comments
             ]
         except Exception:
             return []
+
 
 class UserProjectSerializer(serializers.ModelSerializer):
     project_scenario = serializers.SerializerMethodField()
@@ -433,7 +436,7 @@ class HomePageProjectSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.Project
         fields = [
-            'id', 'title', 'company', 'description', 'image', 
+            'id', 'title', 'company', 'description', 'image',
             'tags', 'study_fields', 'is_active'
         ]
 

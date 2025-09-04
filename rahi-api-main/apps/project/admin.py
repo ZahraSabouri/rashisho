@@ -1,9 +1,3 @@
-# apps/project/admin.py (CORRECTED VERSION)
-"""
-Admin interface for project models with activation status management.
-Updated to properly handle existing Project registration and add new functionality.
-"""
-
 from django.contrib import admin
 from django.db.models import Count
 from django.utils.html import format_html
