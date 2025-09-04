@@ -107,9 +107,9 @@ class ProjectSerializer(serializers.ModelSerializer):
     """
     project_scenario = ScenarioSerializer(many=True, read_only=True)
     project_task = TaskSerializer(many=True, read_only=True)
-    # study_fields = StudyFieldSerializer(many=True, read_only=True)
-    study_fields = serializers.ListField(
-    child=serializers.IntegerField(), write_only=True, required=False, allow_empty=True)
+    study_fields = StudyFieldSerializer(many=True, read_only=True)
+    study_field_ids = serializers.ListField(
+            child=serializers.IntegerField(), write_only=True, required=False, allow_empty=True)
     tags = ProjectTagSerializer(many=True, read_only=True)
     tag_ids = serializers.ListField(
         child=serializers.UUIDField(),
@@ -134,37 +134,49 @@ class ProjectSerializer(serializers.ModelSerializer):
         read_only_fields = ['code', 'status_display', 'can_be_selected',
                             'comments_count', 'has_comments']
 
+    def _extract_study_field_ids(self, validated_data):
+        ctx_ids = self.context.get("study_fields_ids", None)
+        if ctx_ids is not None:
+            return ctx_ids
+        return validated_data.pop("study_field_ids", [])
+
     def create(self, validated_data):
-        tag_ids = validated_data.pop('tag_ids', [])
-        study_fields_ids = validated_data.pop('study_fields', [])
+        tag_ids = validated_data.pop("tag_ids", [])
+        study_ids = self._extract_study_field_ids(validated_data)
+
         project = super().create(validated_data)
-        if study_fields_ids:
-            project.study_fields.set(study_fields_ids)
+
+        if study_ids:
+            project.study_fields.set(study_ids)
         if tag_ids:
             from apps.project.models import Tag
             existing = Tag.objects.filter(id__in=tag_ids)
             if existing.count() != len(tag_ids):
-                from rest_framework.exceptions import ValidationError
                 raise ValidationError("یک یا چند تگ انتخابی معتبر نیست")
             project.tags.set(tag_ids)
         return project
 
     def update(self, instance, validated_data):
-        tag_ids = validated_data.pop('tag_ids', None)
-        study_fields_ids = validated_data.pop('study_fields', None)
+        tag_ids = validated_data.pop("tag_ids", None)
+        study_ids_marker = self.context.get("study_fields_ids", None)
+        if study_ids_marker is None and "study_field_ids" in validated_data:
+            study_ids_marker = validated_data.pop("study_field_ids")
+
         instance = super().update(instance, validated_data)
-        if study_fields_ids is not None:
-            instance.study_fields.set(study_fields_ids)
+
+        if study_ids_marker is not None:
+            instance.study_fields.set(study_ids_marker)
+
         if tag_ids is not None:
             if tag_ids:
                 from apps.project.models import Tag
                 existing = Tag.objects.filter(id__in=tag_ids)
                 if existing.count() != len(tag_ids):
-                    from rest_framework.exceptions import ValidationError
                     raise ValidationError("یک یا چند تگ انتخابی معتبر نیست")
             instance.tags.set(tag_ids)
-        return instance
 
+        return instance
+    
     def to_representation(self, instance):
         rep = super().to_representation(instance)
         rep["image"] = instance.image.url if instance.image else None
@@ -194,7 +206,6 @@ class ProjectSerializer(serializers.ModelSerializer):
             return {}
 
 
-# apps/project/api/serializers/project.py
 
 class ProjectDetailSerializer(ProjectSerializer):
     """
