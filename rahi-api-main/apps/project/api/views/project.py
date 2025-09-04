@@ -36,6 +36,43 @@ class ProjectViewSet(ModelViewSet):
     permission_classes = [IsAdminOrReadOnlyPermission]
     filterset_class = project.ProjectFilterSet
     ordering_fields = "__all__"
+    def get_serializer_context(self):
+        """
+        Pass study field IDs into the serializer context so it can
+        set the M2M after create/update.
+        Works for both JSON and multipart.
+        """
+        ctx = super().get_serializer_context()
+        data = self.request.data
+        if hasattr(data, "getlist"):  # multipart/form-data
+            ids = data.getlist("study_fields[]") or data.getlist("study_fields")
+        else:                         # application/json
+            ids = data.get("study_fields") or data.get("study_fields[]")
+
+        # normalize to a list of ints/strings
+        if ids is None:
+            ids = []
+        elif not isinstance(ids, (list, tuple)):
+            ids = [ids]
+
+        ctx["study_fields_ids"] = ids
+        return ctx
+
+    def perform_create(self, serializer):
+        """
+        Validate presence of study_fields in request (dev requirement),
+        then save. Serializer should read `study_fields_ids` from context.
+        """
+        data = self.request.data
+        if hasattr(data, "getlist"):
+            ids = data.getlist("study_fields[]") or data.getlist("study_fields")
+        else:
+            ids = data.get("study_fields") or data.get("study_fields[]")
+
+        if not ids:
+            raise ValidationError("رشته های تحصیلی را وارد کنید!")
+
+        serializer.save()
 
     def get_queryset(self):
         """Filter queryset based on user role and project status"""
@@ -62,53 +99,77 @@ class ProjectViewSet(ModelViewSet):
                 return serializers.UserProjectSerializer
         return super().get_serializer_class()
 
-    def perform_create(self, serializer):
-        """Enhanced project creation with proper validation"""
-        study_fields = self.request.data.getlist("study_fields[]", [])
+    def perform_update(self, serializer):
+        """
+        Update a project.
 
-        if not study_fields:
+        - PUT: require non-empty study_fields (same rule as create).
+        - PATCH: study_fields is optional; if it's present (even empty list),
+                the serializer can update/clear it. If it's omitted, leave as-is.
+        - Works for both JSON and multipart/form-data.
+        - Clears list/homepage caches and a per-project cache key.
+        """
+        data = self.request.data
+        method = self.request.method.upper()
+
+        if hasattr(data, "getlist"):  # multipart/form-data
+            ids = data.getlist("study_fields[]") or data.getlist("study_fields")
+            provided = ("study_fields[]" in data) or ("study_fields" in data)
+        else:                         # application/json
+            ids = data.get("study_fields") or data.get("study_fields[]")
+            provided = ("study_fields" in data) or ("study_fields[]" in data)
+
+        # Enforce the same requirement as create on full updates
+        if method == "PUT" and not ids:
             raise ValidationError("رشته های تحصیلی را وارد کنید!")
 
-        # Projects are active by default
-        serializer.save()
-        
-        # Clear related caches
+        instance = serializer.save()  # serializer will read `study_fields_ids` from context
+
+        # Bust caches
         cache.delete_many([
-            'active_projects_list',
-            'project_status_stats',
-            'homepage_projects'
+            "active_projects_list",
+            "project_status_stats",
+            "homepage_projects",
+            f"project_detail_{instance.pk}",
         ])
 
-    def perform_update(self, serializer):
-        """Clear caches after project update"""
-        serializer.save()
-        
-        # Clear related caches
-        cache.delete_many([
-            'active_projects_list', 
-            'project_status_stats',
-            'homepage_projects'
-        ])
 
     # def perform_destroy(self, instance):
-    #     try:
-    #         models.Task.objects.filter(project=instance).delete()
-    #         models.Scenario.objects.filter(project=instance).delete()
-    #         super().perform_destroy(instance)
-
-    #     except ProtectedError:
-    #         raise ValidationError({"message": "قابلیت حذف وجود ندارد چون این پروژه در قسمت های دیگر استفاده شده است!"})
-
-    def perform_destroy(self, instance):
-        """Clear caches after project deletion"""
-        super().perform_destroy(instance)
+    #     """Clear caches after project deletion"""
+    #     super().perform_destroy(instance)
         
-        # Clear related caches
-        cache.delete_many([
-            'active_projects_list',
-            'project_status_stats', 
-            'homepage_projects'
-        ])    
+    #     # Clear related caches
+    #     cache.delete_many([
+    #         'active_projects_list',
+    #         'project_status_stats', 
+    #         'homepage_projects'
+    #     ])    
+
+def perform_destroy(self, instance):
+    # keep IDs/handles you might need after delete
+    pk = instance.pk
+    image = getattr(instance, "image", None)
+    video = getattr(instance, "video", None)
+    filef = getattr(instance, "file", None)
+
+    # delete DB row
+    super().perform_destroy(instance)
+
+    # OPTIONAL — clean up orphaned media files (ignore storage errors)
+    for f in (image, video, filef):
+        try:
+            if f and hasattr(f, "delete"):
+                f.delete(save=False)
+        except Exception:
+            pass
+
+    # invalidate caches
+    cache.delete_many([
+        "active_projects_list",
+        "project_status_stats",
+        "homepage_projects",
+        f"project_detail_{pk}",   # object-scoped key if you use one
+    ])
 
     @action(methods=["get"], detail=False, serializer_class=serializers.ProjectListSerializer)
     def projects_list(self, request, *args, **kwargs):
