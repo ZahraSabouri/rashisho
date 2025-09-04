@@ -3,6 +3,9 @@ from django.shortcuts import get_object_or_404
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
 
+from drf_spectacular.utils import extend_schema_field
+from drf_spectacular.types import OpenApiTypes
+
 from apps.account.models import User
 from apps.common.serializers import CustomSlugRelatedField
 from apps.project import models
@@ -13,6 +16,7 @@ from apps.project.api.serializers.tag import ProjectTagSerializer
 from apps.resume.models import Resume
 from apps.settings.api.serializers.study_field import StudyFieldSerializer
 from apps.project.models import Project
+from apps.project.services import count_project_attractiveness, is_selection_phase_active
 
 
 class ScenarioSerializer(serializers.ModelSerializer):
@@ -128,6 +132,8 @@ class ProjectSerializer(serializers.ModelSerializer):
     status_display = serializers.CharField(read_only=True)
     can_be_selected = serializers.BooleanField(read_only=True)
 
+    attractiveness = serializers.SerializerMethodField()
+
     class Meta:
         model = models.Project
         exclude = ["deleted", "deleted_at"]
@@ -139,6 +145,14 @@ class ProjectSerializer(serializers.ModelSerializer):
         if ctx_ids is not None:
             return ctx_ids
         return validated_data.pop("study_field_ids", [])
+
+    @extend_schema_field(OpenApiTypes.INT)
+    def get_attractiveness(self, obj):
+    # Show this only when the selection phase (PP) is active.
+    # Hide it otherwise, and we'll drop the key in to_representation.
+        if not is_selection_phase_active():
+            return None
+        return count_project_attractiveness(obj.id)
 
     def create(self, validated_data):
         tag_ids = validated_data.pop("tag_ids", [])
@@ -182,8 +196,10 @@ class ProjectSerializer(serializers.ModelSerializer):
         rep["image"] = instance.image.url if instance.image else None
         rep["video"] = instance.video.url if instance.video else None
         rep["file"] = instance.file.url if instance.file else None
-        # Include tag count for convenience
+        # rep["attractiveness"] = instance.file.url if instance.file else None
         rep["tags_count"] = instance.tags.count()
+        if rep.get("attractiveness") is None:
+            rep.pop("attractiveness", None)
         return rep
 
     def get_latest_comments(self, obj):
@@ -204,7 +220,6 @@ class ProjectSerializer(serializers.ModelSerializer):
             return obj.get_comment_statistics()
         except Exception:
             return {}
-
 
 
 class ProjectDetailSerializer(ProjectSerializer):
@@ -260,6 +275,7 @@ class UserProjectSerializer(serializers.ModelSerializer):
     project_task = serializers.SerializerMethodField()
     study_fields = StudyFieldSerializer(many=True, read_only=True)
     tags = ProjectTagSerializer(many=True, read_only=True)
+    attractiveness = serializers.SerializerMethodField()
 
     class Meta:
         model = models.Project
@@ -285,6 +301,12 @@ class UserProjectSerializer(serializers.ModelSerializer):
                 return TaskSerializer(tasks, many=True).data
         return None
 
+    @extend_schema_field(OpenApiTypes.INT)
+    def get_attractiveness(self, obj):
+        if is_selection_phase_active():
+            return None  
+        return count_project_attractiveness(obj.id)
+
     def to_representation(self, instance):
         rep = super().to_representation(instance)
         rep["image"] = instance.image.url if instance.image else None
@@ -297,6 +319,9 @@ class UserProjectSerializer(serializers.ModelSerializer):
         else:
             rep['is_selectable'] = True
             rep['status_message'] = None
+
+        if rep.get("attractiveness") is None:
+            rep.pop("attractiveness", None)
 
         return rep
 
