@@ -11,9 +11,11 @@ class ProjectCommentSerializer(CommentSerializer):
     Serializer for project comments with automatic content_type handling.
     Simplifies API by auto-setting content_type to 'project.project'.
     """
-    project_id = serializers.IntegerField(write_only=True, source='object_id')
+    # project_id = serializers.IntegerField(write_only=True, source='object_id')
+    # project_title = serializers.CharField(source='content_object.title', read_only=True)
+    project_id = serializers.UUIDField(write_only=True, source='object_id')
     project_title = serializers.CharField(source='content_object.title', read_only=True)
-    
+
     class Meta(CommentSerializer.Meta):
         fields = CommentSerializer.Meta.fields + ['project_id', 'project_title']
         # Remove content_type from required fields since we auto-set it
@@ -32,6 +34,24 @@ class ProjectCommentSerializer(CommentSerializer):
             return value
         except Project.DoesNotExist:
             raise serializers.ValidationError("پروژه مورد نظر یافت نشد")
+        
+    def validate_parent_id(self, value):
+        """Ensure parent comment belongs to the same project and is a project comment."""
+        if value is None:
+            return value
+        try:
+            parent = Comment.objects.get(id=value)
+            if parent.content_type.model != 'project':
+                raise serializers.ValidationError("کامنت والد باید مربوط به پروژه باشد")
+            # Compare as strings because Comment.object_id is CharField
+            requested_pid = str(self.initial_data.get('project_id'))
+            if str(parent.object_id) != requested_pid:
+                raise serializers.ValidationError("کامنت والد باید مربوط به همین پروژه باشد")
+            if parent.parent is not None:
+                raise serializers.ValidationError("فقط یک سطح پاسخ مجاز است")
+            return value
+        except Comment.DoesNotExist:
+            raise serializers.ValidationError("کامنت والد یافت نشد")
 
     def validate(self, attrs):
         """Auto-set content_type to project model"""
@@ -132,8 +152,8 @@ class ProjectCommentCreateSerializer(serializers.ModelSerializer):
                     raise serializers.ValidationError("کامنت والد باید مربوط به پروژه باشد")
                 
                 # Check if parent belongs to same project
-                project_id = self.initial_data.get('project_id')
-                if parent.object_id != project_id:
+                requested_pid = str(self.initial_data.get('project_id'))
+                if str(parent.object_id) != requested_pid:
                     raise serializers.ValidationError("کامنت والد باید مربوط به همین پروژه باشد")
                 
                 # Check reply depth (only 1 level allowed)
