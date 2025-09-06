@@ -31,7 +31,8 @@ class Comment(BaseModel):
         on_delete=models.CASCADE,
         verbose_name="نوع محتوا"
     )
-    object_id = models.PositiveIntegerField(verbose_name="شناسه آبجکت")
+    # object_id = models.PositiveIntegerField(verbose_name="شناسه آبجکت")
+    object_id = models.CharField(max_length=36, verbose_name="شناسه آبجکت")
     content_object = GenericForeignKey('content_type', 'object_id')
     
     # User and content

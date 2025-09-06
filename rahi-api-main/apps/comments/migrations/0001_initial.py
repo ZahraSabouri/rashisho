@@ -25,7 +25,7 @@ class Migration(migrations.Migration):
                 ('deleted_at', models.DateTimeField(blank=True, editable=False, null=True)),
                 ('updated_at', models.DateTimeField(auto_now=True)),
                 ('deleted', models.BooleanField(default=False, editable=False)),
-                ('object_id', models.PositiveIntegerField(verbose_name='شناسه آبجکت')),
+                ('object_id', models.CharField(verbose_name='شناسه آبجکت')),
                 ('content', models.TextField(help_text='حداقل 5 کاراکتر', validators=[django.core.validators.MinLengthValidator(5)], verbose_name='متن نظر')),
                 ('status', models.CharField(choices=[('PENDING', 'در انتظار تایید'), ('APPROVED', 'تایید شده'), ('REJECTED', 'رد شده')], default='PENDING', max_length=10, verbose_name='وضعیت')),
                 ('approved_at', models.DateTimeField(blank=True, null=True, verbose_name='تاریخ تایید')),
