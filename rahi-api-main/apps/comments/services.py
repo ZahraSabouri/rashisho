@@ -17,24 +17,14 @@ class CommentService:
     """
     
     @staticmethod
-    def get_comments_for_object(content_type_str: str, object_id: int, 
-                              user=None, include_pending: bool = False) -> List[Comment]:
-        """
-        Get comments for a specific object with proper filtering and optimization.
-        
-        Args:
-            content_type_str: Format "app_label.model_name" 
-            object_id: ID of the target object
-            user: Current user for permission checks
-            include_pending: Whether to include pending comments (admin only)
-        """
+    def get_comments_for_object(content_type_str: str, object_id, user=None, include_pending: bool=False) -> List[Comment]:
+        object_id = str(object_id)  # <— key change
         try:
             app_label, model = content_type_str.split('.')
             content_type = ContentType.objects.get(app_label=app_label, model=model)
         except (ValueError, ContentType.DoesNotExist):
             return []
-        
-        # Check cache first
+
         cache_key = f"comments:{content_type.id}:{object_id}:approved"
         if not include_pending:
             cached_comments = cache.get(cache_key)
@@ -42,42 +32,22 @@ class CommentService:
                 return cached_comments
         
         # Build queryset with optimizations
-        queryset = Comment.objects.select_related(
-            'user', 'approved_by'
-        ).prefetch_related(
-            Prefetch(
-                'replies',
-                queryset=Comment.objects.filter(status='APPROVED').select_related('user'),
-                to_attr='approved_replies'
-            ),
-            'reactions'
-        ).filter(
-            content_type=content_type,
-            object_id=object_id,
-            parent__isnull=True  # Only top-level comments
-        )
-        
-        # Filter by status based on user permissions
+        queryset = Comment.objects.select_related('user','approved_by')\
+            .prefetch_related(
+                Prefetch('replies', queryset=Comment.objects.filter(status='APPROVED').select_related('user'), to_attr='approved_replies'),
+                'reactions'
+            ).filter(content_type=content_type, object_id=object_id, parent__isnull=True)
         if not include_pending or not (user and hasattr(user, 'role') and user.role == 0):
             queryset = queryset.filter(status='APPROVED')
-        
         comments = list(queryset.order_by('-created_at'))
-        
-        # Cache approved comments only
         if not include_pending:
-            cache.set(cache_key, comments, timeout=300)  # 5 minutes
-        
+            cache.set(cache_key, comments, timeout=300)
         return comments
     
     @staticmethod
     def create_comment(user, content_type_str: str, object_id: int, 
                       content: str, parent_id: Optional[int] = None) -> Tuple[Comment, bool]:
-        """
-        Create a new comment with validation and business rules.
-        
-        Returns:
-            Tuple of (comment, created) where created indicates success
-        """
+        object_id = str(object_id)
         try:
             app_label, model = content_type_str.split('.')
             content_type = ContentType.objects.get(app_label=app_label, model=model)
@@ -298,11 +268,11 @@ class CommentService:
     @staticmethod
     def invalidate_comments_cache(content_type_str: str, object_id: int):
         """Invalidate cached comments for a specific object."""
+        object_id = str(object_id)
         try:
             app_label, model = content_type_str.split('.')
             content_type = ContentType.objects.get(app_label=app_label, model=model)
-            cache_key = f"comments:{content_type.id}:{object_id}:approved"
-            cache.delete(cache_key)
+            cache.delete(f"comments:{content_type.id}:{object_id}:approved")
         except (ValueError, ContentType.DoesNotExist):
             pass
     
@@ -362,16 +332,21 @@ class ProjectCommentService:
                           parent_id: Optional[int] = None) -> Comment:
         """Add comment to a project."""
         # Validate project exists and is active
-        try:
-            project = Project.objects.get(id=project_id, visible=True)
-        except Project.DoesNotExist:
-            raise ValueError("پروژه یافت نشد یا غیرفعال است")
+        # try:
+        #     project = Project.objects.get(id=project_id, visible=True)
+        # except Project.DoesNotExist:
+        #     raise ValueError("پروژه یافت نشد یا غیرفعال است")
         
         comment, created = CommentService.create_comment(
             user, 'project.project', project_id, content, parent_id
         )
         
         return comment
+        # comment, created = CommentService.create_comment(
+        #     user, 'project.project', project_id, content, parent_id
+        # )
+        
+        # return comment
     
     @staticmethod
     def get_project_comment_summary(project_id: int) -> Dict:
