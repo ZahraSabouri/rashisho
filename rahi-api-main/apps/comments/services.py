@@ -1,4 +1,5 @@
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Optional, Tuple, Union
+from uuid import UUID
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.db.models import Count, Q, Prefetch
@@ -18,7 +19,7 @@ class CommentService:
     
     @staticmethod
     def get_comments_for_object(content_type_str: str, object_id, user=None, include_pending: bool=False) -> List[Comment]:
-        object_id = str(object_id)  # <— key change
+        object_id = str(object_id)
         try:
             app_label, model = content_type_str.split('.')
             content_type = ContentType.objects.get(app_label=app_label, model=model)
@@ -46,7 +47,8 @@ class CommentService:
     
     @staticmethod
     def create_comment(user, content_type_str: str, object_id: int, 
-                      content: str, parent_id: Optional[int] = None) -> Tuple[Comment, bool]:
+                    #   content: str, parent_id: Optional[int] = None) -> Tuple[Comment, bool]:
+                      content: str, parent_id: Optional[Union[str, UUID]] = None) -> Tuple[Comment, bool]:
         object_id = str(object_id)
         try:
             app_label, model = content_type_str.split('.')
@@ -329,7 +331,8 @@ class ProjectCommentService:
     
     @staticmethod
     def add_project_comment(user, project_id: int, content: str, 
-                          parent_id: Optional[int] = None) -> Comment:
+                        #   parent_id: Optional[int] = None) -> Comment:
+                          parent_id: Optional[Union[str, UUID]] = None) -> Comment:
         """Add comment to a project."""
         # Validate project exists and is active
         # try:

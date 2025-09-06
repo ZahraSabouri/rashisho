@@ -114,8 +114,10 @@ class ProjectCommentCreateSerializer(serializers.ModelSerializer):
     Simplified serializer for creating project comments.
     Only requires content and project_id.
     """
-    project_id = serializers.IntegerField()
-    parent_id = serializers.IntegerField(required=False, allow_null=True)
+    # project_id = serializers.IntegerField()
+    project_id = serializers.CharField()
+    # parent_id = serializers.IntegerField(required=False, allow_null=True)
+    parent_id = serializers.CharField(required=False, allow_null=True)
     
     class Meta:
         model = Comment
@@ -184,7 +186,8 @@ class ProjectCommentModerationSerializer(serializers.Serializer):
     action = serializers.ChoiceField(choices=['approve', 'reject', 'delete'])
     reason = serializers.CharField(max_length=500, required=False, allow_blank=True)
     comment_ids = serializers.ListField(
-        child=serializers.IntegerField(),
+        # child=serializers.IntegerField(),
+        child=serializers.UUIDField(),
         min_length=1,
         max_length=100
     )

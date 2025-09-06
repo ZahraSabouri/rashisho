@@ -53,7 +53,8 @@ class CommentSerializer(serializers.ModelSerializer):
     content_type = serializers.CharField(write_only=True, required=False)
     # object_id = serializers.IntegerField(write_only=True, required=False)
     object_id = serializers.CharField(write_only=True, required=False)
-    parent_id = serializers.IntegerField(write_only=True, required=False, allow_null=True)
+    # parent_id = serializers.IntegerField(write_only=True, required=False, allow_null=True)
+    parent_id = serializers.CharField(write_only=True, required=False, allow_null=True)
     
     class Meta:
         model = Comment
