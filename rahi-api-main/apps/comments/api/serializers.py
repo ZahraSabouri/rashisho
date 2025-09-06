@@ -51,7 +51,8 @@ class CommentSerializer(serializers.ModelSerializer):
     
     # For creating comments
     content_type = serializers.CharField(write_only=True, required=False)
-    object_id = serializers.IntegerField(write_only=True, required=False)
+    # object_id = serializers.IntegerField(write_only=True, required=False)
+    object_id = serializers.CharField(write_only=True, required=False)
     parent_id = serializers.IntegerField(write_only=True, required=False, allow_null=True)
     
     class Meta:
@@ -95,14 +96,6 @@ class CommentSerializer(serializers.ModelSerializer):
             return reaction.reaction_type if reaction else 'none'
         except Exception:
             return 'none'
-    
-    @extend_schema_field(serializers.BooleanField())
-    def get_is_editable(self, obj) -> bool:
-        """Check if comment is editable by current user"""
-        request = self.context.get('request')
-        if not request or not hasattr(request, 'user'):
-            return False
-        return obj.can_edit(request.user)
     
     @extend_schema_field(serializers.CharField())
     def get_content_type_name(self, obj) -> str:
@@ -167,38 +160,73 @@ class CommentSerializer(serializers.ModelSerializer):
         
         return attrs
     
+    def get_is_editable(self, obj) -> bool:
+        """Check if comment is editable by current user."""
+        from apps.comments.utils import is_comment_editable  # local import to avoid cycles
+        request = self.context.get('request')
+        return bool(request and hasattr(request, 'user') and is_comment_editable(request.user, obj))  # <— fix
+
+    def validate(self, attrs):
+        """
+        When creating a comment we must validate the content type and target object.
+        object_id is a string (UUID or int-string) and passed verbatim to the GFK lookup.
+        """
+        if self.instance:
+            return attrs
+
+        content_type_str = attrs.get('content_type')
+        object_id = attrs.get('object_id')
+        parent_id = attrs.get('parent_id')
+
+        if not content_type_str or not object_id:
+            raise ValidationError("content_type و object_id الزامی است")
+
+        try:
+            app_label, model = content_type_str.split('.')
+            content_type = ContentType.objects.get(app_label=app_label, model=model)
+            attrs['content_type_obj'] = content_type
+        except (ValueError, ContentType.DoesNotExist):
+            raise ValidationError("نوع محتوای نامعتبر")
+
+        # Let ContentType handle UUIDs transparently
+        try:
+            target_object = content_type.get_object_for_this_type(id=object_id)
+            attrs['target_object'] = target_object
+        except Exception:
+            raise ValidationError("آبجکت مورد نظر یافت نشد")
+
+        if parent_id:
+            try:
+                parent_comment = Comment.objects.get(
+                    id=parent_id,
+                    content_type=content_type,
+                    object_id=str(object_id),  # <— ensure string compare
+                    status='APPROVED',
+                )
+                if parent_comment.parent is not None:
+                    raise ValidationError("نمی‌توان به پاسخ‌ها پاسخ داد")
+                attrs['parent_obj'] = parent_comment
+            except Comment.DoesNotExist:
+                raise ValidationError("نظر والد یافت نشد")
+
+        return attrs
+
     def create(self, validated_data):
-        """Create new comment"""
-        # Remove write-only fields and set proper relations
+        # Strip helper fields and create the comment
         content_type_obj = validated_data.pop('content_type_obj')
-        target_object = validated_data.pop('target_object')
-        parent_obj = validated_data.pop('parent_obj', None)
-        
-        # Remove the string fields used for validation
+        target_object    = validated_data.pop('target_object')
+        parent_obj       = validated_data.pop('parent_obj', None)
         validated_data.pop('content_type', None)
-        validated_data.pop('object_id', None) 
+        validated_data.pop('object_id', None)
         validated_data.pop('parent_id', None)
-        
-        # Create comment
-        comment = Comment.objects.create(
+
+        return Comment.objects.create(
             content_type=content_type_obj,
-            object_id=target_object.id,
+            object_id=str(target_object.id),  # <— always store as string
             parent=parent_obj,
             user=self.context['request'].user,
-            **validated_data
+            **validated_data,
         )
-        
-        return comment
-    
-    def update(self, instance, validated_data):
-        """Update existing comment (only content can be updated)"""
-        # Only allow content updates
-        if 'content' in validated_data:
-            instance.content = validated_data['content']
-            instance.save(update_fields=['content', 'updated_at'])
-        
-        return instance
-
 
 class CommentReplySerializer(CommentSerializer):
     """Simplified serializer for comment replies (no nested replies)"""
