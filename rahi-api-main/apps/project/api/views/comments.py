@@ -33,36 +33,18 @@ class ProjectCommentViewSet(ModelViewSet):
     ordering = ['-created_at']
 
     def get_queryset(self):
-        """
-        Get comments filtered by project context.
-        Regular users see only approved comments, admins see all.
-        """
-        # Get project content type
-        project_content_type = ContentType.objects.get_for_model(Project)
-        
-        queryset = Comment.objects.filter(
-            content_type=project_content_type
-        ).select_related(
-            'user', 'parent', 'approved_by'
-        ).prefetch_related(
-            'reactions', 'replies'
-        )
+        ct = ContentType.objects.get_for_model(Project)
+        qs = Comment.objects.filter(content_type=ct)
 
-        # Filter by specific project if provided
-        project_id = self.request.query_params.get('project_id')
+        project_id = self.request.query_params.get('project_id')  # optional
         if project_id:
-            try:
-                # Verify project exists
-                Project.objects.get(id=project_id)
-                queryset = queryset.filter(object_id=project_id)
-            except (Project.DoesNotExist, ValueError):
-                raise ValidationError("پروژه مورد نظر یافت نشد")
+            # always compare as string
+            qs = qs.filter(object_id=str(project_id))
 
-        # Permission-based filtering
-        if not self._can_moderate():
-            queryset = queryset.filter(status='APPROVED')
-
-        return queryset
+        if not (hasattr(self.request.user, 'role') and self.request.user.role == 0):
+            qs = qs.filter(status='APPROVED')
+        return qs
+    
 
     def get_serializer_class(self):
         """Choose appropriate serializer based on action"""
@@ -71,32 +53,21 @@ class ProjectCommentViewSet(ModelViewSet):
         return CommentSerializer
 
     def perform_create(self, serializer):
-        """
-        Create comment with project context validation.
-        Auto-set content_type to project.
-        """
-        project_id = serializer.validated_data.get('object_id')
-        
-        # Validate project exists
+        project_id = serializer.validated_data.get('object_id')  # comes in as string/UUID
         try:
-            project = Project.objects.get(id=project_id)
+            Project.objects.get(id=project_id)
         except Project.DoesNotExist:
             raise ValidationError("پروژه مورد نظر یافت نشد")
 
-        # Auto-set content type to project
-        project_content_type = ContentType.objects.get_for_model(Project)
-        
-        # Create comment using service
         comment = ProjectCommentService.add_project_comment(
             user=self.request.user,
             project_id=project_id,
             content=serializer.validated_data['content'],
-            parent_id=serializer.validated_data.get('parent_id')
+            parent_id=serializer.validated_data.get('parent_id'),
         )
-        
-        # Return the created comment data
         serializer.instance = comment
-
+        
+            
     @action(detail=True, methods=['post'], url_path='react')
     def react(self, request, pk=None):
         """Add or update reaction to a comment"""
