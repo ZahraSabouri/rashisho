@@ -16,11 +16,24 @@ class Tag(BaseModel):
     Model for project keywords/tags.
     Allows categorization and discovery of related projects.
     """
+    class TagCategory(models.TextChoices):
+        SKILL = "SKILL", "مهارت"
+        TECHNOLOGY = "TECH", "فناوری"
+        DOMAIN = "DOMAIN", "حوزه"
+        KEYWORD = "KEYWORD", "کلیدواژه"
+    
     name = models.CharField(
         max_length=100, 
         unique=True, 
         verbose_name="نام تگ",
         help_text="نام کلیدواژه (مثال: python, django, machine-learning)"
+    )
+    category = models.CharField(
+        max_length=10,
+        choices=TagCategory.choices,
+        default=TagCategory.KEYWORD,
+        verbose_name="دسته‌بندی",
+        help_text="نوع تگ: مهارت، فناوری، حوزه یا کلیدواژه عمومی"
     )
     description = models.TextField(
         blank=True, 
@@ -32,10 +45,10 @@ class Tag(BaseModel):
     class Meta(BaseModel.Meta):
         verbose_name = "کلیدواژه"
         verbose_name_plural = "کلیدواژه ها"
-        ordering = ['name']
+        ordering = ['category', 'name']
     
     def __str__(self):
-        return self.name
+        return f"{self.name} ({self.get_category_display()})"
     
     def clean(self):
         """Clean and validate tag name"""
@@ -134,6 +147,13 @@ class ProjectSelection(BaseModel):
 class Project(BaseModel):
     code = models.CharField(max_length=300, unique=True, null=True, verbose_name="کد")
     title = models.CharField(max_length=300, verbose_name="عنوان")
+    summary = models.TextField(
+    max_length=200,  # Approximately 2 lines of text
+    blank=True,
+    null=True,
+    verbose_name="خلاصه پروژه",
+    help_text="خلاصه کوتاه و جذاب پروژه در حداکثر دو خط (200 کاراکتر)"
+    )
     image = models.ImageField(upload_to="project/images", verbose_name="تصویر")
     company = models.CharField(max_length=300, verbose_name="شرکت تعریف کننده پروژه")
     leader = models.CharField(max_length=300, null=True, verbose_name="نام راهبر پروژه")
@@ -178,6 +198,7 @@ class Project(BaseModel):
         verbose_name="تغییر خودکار فاز",
         help_text="آیا فاز بر اساس تاریخ شروع و پایان تغییر کند؟"
     )
+    
     
     @property
     def current_phase(self):

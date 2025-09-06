@@ -23,7 +23,7 @@ class ProjectAnnotatedListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Project
         fields = [
-            "id", "title", "code", "company", "leader",
+            "id", "title", "summary", "code", "company", "leader",
             "tags_count", "allocations_count", "attractiveness",
             "current_phase", "can_be_selected"
         ]

@@ -55,19 +55,18 @@ class ProjectViewSet(ModelViewSet):
         """
         # Base queryset (respect your current visibility rules if any)
         qs = (
-            Project.objects.all()
-            .prefetch_related("tags")    # lightweight prefetch to avoid N+1 in other places
-            .annotate(
-                tags_count=Count("tags", distinct=True),
-                allocations_count=Count("allocations", distinct=True),  # reverse name used across codebase
+        Project.objects.filter(visible=True, is_active=True)
+        .prefetch_related("tags", "study_fields")
+        .annotate(
+            tags_count=Count("tags", distinct=True),
+            allocations_count=Count("allocations", distinct=True),
             )
         )
 
-        # Apply existing filterset (same as other project lists)
-        filterset = ProjectFilterSet(request.GET, queryset=qs)
-        qs = filterset.qs
-
-        # Optional ordering: fall back to created_at desc if none provided
+        # Get applied filters info
+        applied_filters = self._get_applied_filters(request.GET)
+    
+        # Apply ordering
         ordering = request.GET.get("ordering") or "-created_at"
         qs = qs.order_by(ordering)
 
@@ -75,7 +74,200 @@ class ProjectViewSet(ModelViewSet):
         paginator = Pagination()
         page = paginator.paginate_queryset(qs, request)
         ser = ProjectAnnotatedListSerializer(page, many=True, context={"request": request})
-        return paginator.get_paginated_response(ser.data)
+    
+        # Get filter and sorting metadata
+        filter_metadata = self._get_filter_metadata(request)
+        
+        # Enhance paginated response with metadata
+        response_data = paginator.get_paginated_response(ser.data).data
+        response_data.update({
+            'filters': filter_metadata,
+            'applied_filters': applied_filters,
+            'applied_filters_count': len(applied_filters),
+            'sorting': {
+                'current': ordering,
+                'available_options': self._get_sorting_options()
+            }
+        })
+        
+        return Response(response_data)
+
+    def _get_applied_filters(self, query_params):
+        """Extract information about currently applied filters"""
+        applied = []
+        
+        filter_mappings = {
+            'title': 'عنوان',
+            'search': 'جستجو کلی', 
+            'company': 'شرکت',
+            'study_fields': 'رشته‌های تحصیلی',
+            'tags': 'کلیدواژه‌ها',
+            'tag_category': 'دسته‌بندی تگ'
+        }
+        
+        for param, label in filter_mappings.items():
+            value = query_params.get(param)
+            if value:
+                applied.append({
+                    'key': param,
+                    'label': label,
+                    'value': value,
+                    'display_value': self._format_filter_display_value(param, value)
+                })
+        
+        return applied
+
+    def _format_filter_display_value(self, param, value):
+        """Format filter values for display"""
+        if param == 'study_fields':
+            try:
+                from apps.settings.models import StudyField
+                field_ids = [int(id.strip()) for id in value.split(',') if id.strip().isdigit()]
+                fields = StudyField.objects.filter(id__in=field_ids)
+                return ', '.join([field.title for field in fields])
+            except:
+                return value
+        
+        elif param == 'tags':
+            try:
+                from apps.project.models import Tag
+                # Handle both tag IDs and names
+                tag_values = [v.strip() for v in value.split(',')]
+                tag_ids = [v for v in tag_values if v.isdigit()]
+                tag_names = [v for v in tag_values if not v.isdigit()]
+                
+                tags = Tag.objects.filter(
+                    models.Q(id__in=tag_ids) | models.Q(name__in=tag_names)
+                )
+                return ', '.join([tag.name for tag in tags])
+            except:
+                return value
+        
+        elif param == 'tag_category':
+            category_map = {
+                'SKILL': 'مهارت',
+                'TECH': 'فناوری', 
+                'DOMAIN': 'حوزه',
+                'KEYWORD': 'کلیدواژه'
+            }
+            return category_map.get(value, value)
+        
+        return value
+
+    def _get_filter_metadata(self, request):
+        """Get metadata about available filters and their options"""
+        from apps.settings.models import StudyField
+        from apps.project.models import Tag
+        
+        # Get available study fields (only those used in projects)
+        available_study_fields = StudyField.objects.filter(
+            project__visible=True,
+            project__is_active=True
+        ).distinct().values('id', 'title')
+        
+        # Get available tags by category
+        available_tags = Tag.objects.filter(
+            projects__visible=True,
+            projects__is_active=True
+        ).distinct().values('id', 'name', 'category')
+        
+        # Group tags by category
+        tags_by_category = {}
+        for tag in available_tags:
+            category = tag['category']
+            if category not in tags_by_category:
+                tags_by_category[category] = []
+            tags_by_category[category].append({
+                'id': tag['id'],
+                'name': tag['name']
+            })
+        
+        # Get popular companies (for suggestions)
+        from django.db.models import Count
+        popular_companies = Project.objects.filter(
+            visible=True, 
+            is_active=True
+        ).values('company').annotate(
+            project_count=Count('id')
+        ).order_by('-project_count')[:10]
+        
+        return {
+            'study_fields': {
+                'type': 'multiselect',
+                'label': 'رشته‌های تحصیلی',
+                'options': list(available_study_fields),
+                'param': 'study_fields'
+            },
+            'tags': {
+                'type': 'multiselect',
+                'label': 'کلیدواژه‌ها',
+                'options_by_category': tags_by_category,
+                'param': 'tags'
+            },
+            'tag_category': {
+                'type': 'select',
+                'label': 'دسته‌بندی کلیدواژه',
+                'options': [
+                    {'value': 'SKILL', 'label': 'مهارت'},
+                    {'value': 'TECH', 'label': 'فناوری'},
+                    {'value': 'DOMAIN', 'label': 'حوزه'},
+                    {'value': 'KEYWORD', 'label': 'کلیدواژه'}
+                ],
+                'param': 'tag_category'
+            },
+            'company': {
+                'type': 'text',
+                'label': 'شرکت',
+                'suggestions': [c['company'] for c in popular_companies],
+                'param': 'company'
+            },
+            'title': {
+                'type': 'text',
+                'label': 'عنوان پروژه',
+                'param': 'title'
+            },
+            'search': {
+                'type': 'text',
+                'label': 'جستجو در همه فیلدها',
+                'param': 'search',
+                'description': 'جستجو در عنوان، توضیحات، شرکت، کلیدواژه‌ها و نام راهبر'
+            }
+        }
+
+    def _get_sorting_options(self):
+        """Get available sorting options"""
+        return [
+            {
+                'value': '-created_at',
+                'label': 'جدیدترین',
+                'description': 'بر اساس تاریخ ایجاد (جدید به قدیم)'
+            },
+            {
+                'value': 'created_at', 
+                'label': 'قدیمی‌ترین',
+                'description': 'بر اساس تاریخ ایجاد (قدیم به جدید)'
+            },
+            {
+                'value': '-allocations_count',
+                'label': 'محبوب‌ترین',
+                'description': 'بر اساس تعداد انتخاب توسط کاربران'
+            },
+            {
+                'value': '-tags_count',
+                'label': 'بیشترین کلیدواژه',
+                'description': 'بر اساس تعداد کلیدواژه‌ها'
+            },
+            {
+                'value': 'title',
+                'label': 'ترتیب الفبایی (الف-ی)',
+                'description': 'بر اساس عنوان پروژه'
+            },
+            {
+                'value': '-title',
+                'label': 'ترتیب الفبایی (ی-الف)',
+                'description': 'بر اساس عنوان پروژه (معکوس)'
+            }
+        ]
 
     def get_serializer_context(self):
         """
