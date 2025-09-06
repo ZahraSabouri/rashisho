@@ -6,16 +6,29 @@ from rest_framework.exceptions import ValidationError, NotFound
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
-from django_filters.rest_framework import DjangoFilterBackend
+from django_filters.rest_framework import DjangoFilterBackend, FilterSet
+import django_filters.rest_framework as dj_filters 
 
 from apps.api.permissions import IsAdminOrReadOnlyPermission
 from apps.api.pagination import Pagination
 from apps.comments.models import Comment, CommentReaction
 from apps.comments.api.serializers import (
     CommentSerializer, CommentListSerializer, CommentReactionSerializer
+
 )
+from apps.project.api.serializers.comments import ProjectCommentSerializer, ProjectCommentListSerializer
 from apps.comments.services import CommentService, ProjectCommentService
 from apps.project.models import Project
+
+class ProjectCommentFilterSet(FilterSet):
+    """
+    FilterSet for /api/v1/project/comments/ that exposes `project_id`
+    as an alias for Comment.object_id.
+    """
+    project_id = dj_filters.CharFilter(field_name="object_id", help_text="Project UUID")
+    class Meta:
+        model = Comment
+        fields = ["status", "parent", "project_id"]
 
 
 class ProjectCommentViewSet(ModelViewSet):
@@ -23,10 +36,12 @@ class ProjectCommentViewSet(ModelViewSet):
     ViewSet for managing comments specifically for projects.
     Provides a cleaner API under /api/v1/project/comments/
     """
-    serializer_class = CommentSerializer
+    # serializer_class = CommentSerializer
+    serializer_class = ProjectCommentSerializer
     permission_classes = [IsAuthenticated]
     pagination_class = Pagination
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_class = ProjectCommentFilterSet
     filterset_fields = ['status', 'parent']
     search_fields = ['content']
     ordering_fields = ['created_at', 'likes_count']
@@ -36,27 +51,28 @@ class ProjectCommentViewSet(ModelViewSet):
         ct = ContentType.objects.get_for_model(Project)
         qs = Comment.objects.filter(content_type=ct)
 
-        project_id = self.request.query_params.get('project_id')  # optional
-        if project_id:
-            # always compare as string
-            qs = qs.filter(object_id=str(project_id))
+        project_ct = ContentType.objects.get_for_model(Project)
+        qs = Comment.objects.filter(content_type=project_ct)
 
-        if not (hasattr(self.request.user, 'role') and self.request.user.role == 0):
-            qs = qs.filter(status='APPROVED')
+        if not (hasattr(self.request.user, "role") and self.request.user.role == 0):
+            qs = qs.filter(status="APPROVED")
         return qs
     
 
     def get_serializer_class(self):
         """Choose appropriate serializer based on action"""
         if self.action == 'list':
-            return CommentListSerializer
-        return CommentSerializer
+        #     return CommentListSerializer
+        # return CommentSerializer
+            return ProjectCommentListSerializer
+        return ProjectCommentListSerializer
 
     def perform_create(self, serializer):
-        project_id = serializer.validated_data.get('object_id')  # comes in as string/UUID
+        project_id = serializer.validated_data.get("object_id")
         try:
             Project.objects.get(id=project_id)
         except Project.DoesNotExist:
+            from rest_framework.exceptions import ValidationError
             raise ValidationError("پروژه مورد نظر یافت نشد")
 
         comment = ProjectCommentService.add_project_comment(
@@ -66,8 +82,7 @@ class ProjectCommentViewSet(ModelViewSet):
             parent_id=serializer.validated_data.get('parent_id'),
         )
         serializer.instance = comment
-        
-            
+          
     @action(detail=True, methods=['post'], url_path='react')
     def react(self, request, pk=None):
         """Add or update reaction to a comment"""

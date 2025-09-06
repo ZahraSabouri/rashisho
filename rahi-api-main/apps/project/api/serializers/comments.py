@@ -13,16 +13,15 @@ class ProjectCommentSerializer(CommentSerializer):
     """
     # project_id = serializers.IntegerField(write_only=True, source='object_id')
     # project_title = serializers.CharField(source='content_object.title', read_only=True)
-    project_id = serializers.UUIDField(write_only=True, source='object_id')
-    project_title = serializers.CharField(source='content_object.title', read_only=True)
+    project_id = serializers.UUIDField(write_only=True, source="object_id")
+    project_title = serializers.CharField(source="content_object.title", read_only=True)
 
     class Meta(CommentSerializer.Meta):
-        fields = CommentSerializer.Meta.fields + ['project_id', 'project_title']
-        # Remove content_type from required fields since we auto-set it
+        fields = CommentSerializer.Meta.fields + ["project_id", "project_title"]
         extra_kwargs = {
-            **CommentSerializer.Meta.extra_kwargs,
-            'content_type': {'required': False, 'write_only': True},
-            'object_id': {'write_only': True},
+            **getattr(CommentSerializer.Meta, "extra_kwargs", {}),
+            "content_type": {"required": False, "write_only": True},
+            "object_id": {"write_only": True},
         }
 
     def validate_project_id(self, value):
@@ -55,33 +54,28 @@ class ProjectCommentSerializer(CommentSerializer):
 
     def validate(self, attrs):
         """Auto-set content_type to project model"""
-        # Auto-set content type for projects
-        project_content_type = ContentType.objects.get_for_model(Project)
-        attrs['content_type'] = project_content_type
-        
-        # Call parent validation
+        attrs["content_type"] = ContentType.objects.get_for_model(Project)
         return super().validate(attrs)
 
+
     def to_representation(self, instance):
-        """Add project-specific information to response"""
+        """Expose project_id in responses + keep your existing extras."""
         data = super().to_representation(instance)
-        
-        # Add project-specific context
-        if hasattr(instance, 'content_object') and instance.content_object:
-            project = instance.content_object
-            data['project'] = {
-                'id': project.id,
-                'title': project.title,
-                'code': project.code,
-                'status': project.status_display
-            }
-        
-        # Add user's reaction to this comment (if authenticated)
-        request = self.context.get('request')
+
+        data["project_id"] = str(instance.object_id)
+
+        if getattr(instance, "content_object", None):
+            prj = instance.content_object
+            data.setdefault(
+                "project",
+                {"id": prj.id, "title": prj.title, "code": prj.code, "status": prj.status_display},
+            )
+
+        request = self.context.get("request")
         if request and request.user.is_authenticated:
             user_reaction = instance.reactions.filter(user=request.user).first()
-            data['user_reaction'] = user_reaction.reaction_type if user_reaction else None
-        
+            data["user_reaction"] = user_reaction.reaction_type if user_reaction else None
+
         return data
 
 
@@ -90,11 +84,12 @@ class ProjectCommentListSerializer(CommentListSerializer):
     List serializer for project comments with minimal project info.
     Optimized for list views with reduced data.
     """
+    project_id = serializers.CharField(source='object_id', read_only=True)
     project_title = serializers.CharField(source='content_object.title', read_only=True)
     project_code = serializers.CharField(source='content_object.code', read_only=True)
     
     class Meta(CommentListSerializer.Meta):
-        fields = CommentListSerializer.Meta.fields + ['project_title', 'project_code']
+        fields = CommentListSerializer.Meta.fields + ["project_id", "project_title", "project_code"]
 
     def to_representation(self, instance):
         """Add minimal project info for list view"""
