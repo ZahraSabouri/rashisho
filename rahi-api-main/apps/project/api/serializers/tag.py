@@ -4,10 +4,6 @@ from apps.project import models
 
 
 class TagSerializer(serializers.ModelSerializer):
-    """
-    Basic tag serializer for CRUD operations.
-    Used for listing, creating, updating tags.
-    """
     project_count = serializers.SerializerMethodField()
     category_display = serializers.CharField(source='get_category_display', read_only=True)
     
@@ -49,24 +45,15 @@ class TagSerializer(serializers.ModelSerializer):
 
 
 class TagCreateSerializer(serializers.ModelSerializer):
-    """
-    Serializer for creating new tags.
-    Simplified version for creation form.
-    """
     class Meta:
         model = models.Tag
-        fields = ["name", "description"]
+        fields = ["name", "description", "category"] 
     
     def validate_name(self, value):
-        """Same validation as TagSerializer"""
         return TagSerializer().validate_name(value)
 
 
 class ProjectTagSerializer(serializers.ModelSerializer):
-    """
-    Lightweight serializer for tags when displayed within project context.
-    Used in project detail views and related project suggestions.
-    """
     category_display = serializers.CharField(source='get_category_display', read_only=True)
     
     class Meta:
@@ -75,10 +62,6 @@ class ProjectTagSerializer(serializers.ModelSerializer):
 
 
 class RelatedProjectSerializer(serializers.ModelSerializer):
-    """
-    Serializer for projects suggested based on shared tags.
-    Includes additional fields showing relationship strength.
-    """
     shared_tags_count = serializers.IntegerField(read_only=True)
     common_tags = ProjectTagSerializer(many=True, read_only=True, source='tags')
     
@@ -90,7 +73,6 @@ class RelatedProjectSerializer(serializers.ModelSerializer):
         ]
     
     def to_representation(self, instance):
-        """Add media URLs to representation"""
         rep = super().to_representation(instance)
         rep["image"] = instance.image.url if instance.image else None
         
@@ -103,11 +85,16 @@ class RelatedProjectSerializer(serializers.ModelSerializer):
         return rep
 
 
+class InlineTagCreateSerializer(serializers.Serializer):
+    name = serializers.CharField(max_length=100)
+    category = serializers.ChoiceField(choices=models.Tag.TagCategory.choices, required=False)
+    description = serializers.CharField(allow_blank=True, required=False)
+
+    def validate_name(self, value):
+        return TagSerializer().validate_name(value)
+
+
 class ProjectTagUpdateSerializer(serializers.ModelSerializer):
-    """
-    Serializer for updating project tags.
-    Handles adding/removing tags from projects.
-    """
     tag_ids = serializers.ListField(
         child=serializers.UUIDField(),
         write_only=True,
@@ -115,47 +102,47 @@ class ProjectTagUpdateSerializer(serializers.ModelSerializer):
         allow_empty=True,
         help_text="فهرست IDهای تگ‌هایی که می‌خواهید به پروژه اضافه کنید"
     )
-    tags = ProjectTagSerializer(many=True, read_only=True)
-    
+    new_tags = InlineTagCreateSerializer(many=True, required=False, write_only=True)
+
+    tags = TagSerializer(many=True, read_only=True)
+
     class Meta:
         model = models.Project
-        fields = ["id", "title", "tags", "tag_ids"]
+        fields = ["id", "title", "tags", "tag_ids", "new_tags"]
         read_only_fields = ["id", "title", "tags"]
     
     def validate_tag_ids(self, value):
-        """Validate that all provided tag IDs exist"""
         if not value:
             return value
-        
-        # Remove duplicates while preserving order
         value = list(dict.fromkeys(value))
-        
-        # Check if all tags exist
-        existing_tags = models.Tag.objects.filter(id__in=value)
-        existing_ids = set(str(tag.id) for tag in existing_tags)
-        provided_ids = set(str(id) for id in value)
-        
-        if len(existing_ids) != len(provided_ids):
-            invalid_ids = provided_ids - existing_ids
-            raise serializers.ValidationError(
-                f"تگ‌های زیر یافت نشدند: {', '.join(invalid_ids)}"
-            )
-        
+        existing = models.Tag.objects.filter(id__in=value).values_list("id", flat=True)
+        missing = set(map(str, value)) - set(map(str, existing))
+        if missing:
+            raise serializers.ValidationError(f"Unknown tag ids: {', '.join(missing)}")
         return value
-    
+
     def update(self, instance, validated_data):
-        """Update project tags"""
-        tag_ids = validated_data.pop('tag_ids', None)
-        
-        if tag_ids is not None:
-            if tag_ids:
-                # Set new tags
-                tags = models.Tag.objects.filter(id__in=tag_ids)
-                instance.tags.set(tags)
+        tag_ids = validated_data.pop("tag_ids", None)
+        new_tags_payload = validated_data.pop("new_tags", [])
+
+        created_or_existing_ids = []
+        for item in new_tags_payload:
+            name = item["name"].strip().lower()
+            defaults = {
+                "category": item.get("category") or models.Tag.TagCategory.KEYWORD,
+                "description": item.get("description", ""),
+            }
+            tag_obj, _ = models.Tag.objects.update_or_create(name=name, defaults=defaults)
+            created_or_existing_ids.append(tag_obj.id)
+
+        if tag_ids is not None or created_or_existing_ids:
+            ids_to_set = set(tag_ids or [])
+            ids_to_set.update(created_or_existing_ids)
+            if ids_to_set:
+                instance.tags.set(models.Tag.objects.filter(id__in=ids_to_set))
             else:
-                # Clear all tags
                 instance.tags.clear()
-        
+
         return super().update(instance, validated_data)
 
 

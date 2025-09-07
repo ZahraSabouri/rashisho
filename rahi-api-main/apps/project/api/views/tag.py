@@ -26,9 +26,9 @@ class TagViewSet(ModelViewSet):
     search_fields = ['name', 'description']
     ordering_fields = ['name', 'created_at']
     ordering = ['name']
+    filterset_fields = ['category']
     
     def get_serializer_class(self):
-        """Return appropriate serializer based on action"""
         if self.action == 'create':
             return tag_serializers.TagCreateSerializer
         elif self.action == 'analytics':
@@ -53,12 +53,10 @@ class TagViewSet(ModelViewSet):
         return queryset
     
     def create(self, request, *args, **kwargs):
-        """Create a new tag with success message"""
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         tag = serializer.save()
         
-        # Clear popular tags cache
         cache.delete('popular_tags')
         
         return Response({
@@ -150,6 +148,23 @@ class TagViewSet(ModelViewSet):
         serializer = self.get_serializer(unused_tags, many=True)
         return Response(serializer.data)
 
+    @action(detail=True, methods=['patch'], url_path='set-category')
+    def set_category(self, request, pk=None):
+        """
+        Minimal “category-only” patch.
+        Admin-only (permission class already enforced on the ViewSet).
+        """
+        tag = self.get_object()
+        category = request.data.get('category')
+        if category is None:
+            return Response({'error': 'category is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Let DRF/model validate the choice
+        tag.category = category
+        tag.save(update_fields=['category'])
+
+        cache.delete('popular_tags')  # keep caches honest
+        return Response({'message': 'category updated', 'tag': tag_serializers.TagSerializer(tag).data})
 
 class ProjectTagManagementView(APIView):
     schema = TaggedAutoSchema(tags=["Project Tags"])
