@@ -3,9 +3,10 @@ import mimetypes
 import os
 
 import xlsxwriter
-from django.db.models import Prefetch, ProtectedError
+from django.db.models import Prefetch, ProtectedError, Count
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
+from django.core.cache import cache
 from rest_framework import status, views
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
@@ -22,83 +23,444 @@ from apps.project.api.serializers import project as serializers
 from apps.project.models import TeamRequest
 from apps.project.services import allocate_project, generate_project_unique_code
 
+from apps.api.pagination import Pagination
+from apps.project.models import Project
+from apps.project.api.serializers.project_list import ProjectAnnotatedListSerializer
+from apps.project.api.filters.project import ProjectFilterSet 
+
 
 class ProjectViewSet(ModelViewSet):
     serializer_class = serializers.ProjectSerializer
     queryset = models.Project.objects.all().prefetch_related(
-        Prefetch("project_task", queryset=models.Task.objects.filter(is_active=True)), "project_scenario"
+        Prefetch("project_task", queryset=models.Task.objects.filter(is_active=True)), 
+        "project_scenario",
+        "tags",
+        "study_fields"
     )
 
     permission_classes = [IsAdminOrReadOnlyPermission]
     filterset_class = project.ProjectFilterSet
     ordering_fields = "__all__"
+    @action(detail=False, methods=["get"], url_path="annotated", permission_classes=[AllowAny])
+    def annotated(self, request):
+        """
+        List projects with precomputed counts.
+
+        Query params:
+          - title: icontains filter (already supported by ProjectFilterSet)
+          - study_fields: comma-separated ids (ProjectFilterSet)
+          - ordering: e.g. '-allocations_count', '-tags_count', '-created_at'
+
+        Returns paginated results using apps.api.pagination.Pagination.
+        """
+        # Base queryset (respect your current visibility rules if any)
+        qs = (
+        Project.objects.filter(visible=True, is_active=True)
+        .prefetch_related("tags", "study_fields")
+        .annotate(
+            tags_count=Count("tags", distinct=True),
+            allocations_count=Count("allocations", distinct=True),
+            )
+        )
+
+        # Get applied filters info
+        applied_filters = self._get_applied_filters(request.GET)
+    
+        # Apply ordering
+        ordering = request.GET.get("ordering") or "-created_at"
+        qs = qs.order_by(ordering)
+
+        # Pagination consistent with your project style
+        paginator = Pagination()
+        page = paginator.paginate_queryset(qs, request)
+        ser = ProjectAnnotatedListSerializer(page, many=True, context={"request": request})
+    
+        # Get filter and sorting metadata
+        filter_metadata = self._get_filter_metadata(request)
+        
+        # Enhance paginated response with metadata
+        response_data = paginator.get_paginated_response(ser.data).data
+        response_data.update({
+            'filters': filter_metadata,
+            'applied_filters': applied_filters,
+            'applied_filters_count': len(applied_filters),
+            'sorting': {
+                'current': ordering,
+                'available_options': self._get_sorting_options()
+            }
+        })
+        
+        return Response(response_data)
+
+    @action(detail=True, methods=["get"], url_path="attractiveness", permission_classes=[AllowAny])
+    def attractiveness(self, request, pk=None):
+        from apps.project.services import can_show_attractiveness, count_project_attractiveness
+        from apps.project.models import ProjectAttractiveness
+
+        project = self.get_object()
+
+        if not can_show_attractiveness(project):
+            return Response({"project_id": str(project.id), "attractiveness": None, "user_selected": False})
+
+        count = count_project_attractiveness(project.id)
+        user_selected = False
+        u = request.user
+        if getattr(u, "is_authenticated", False):
+            user_selected = ProjectAttractiveness.objects.filter(user=u, project=project).exists()
+
+        return Response({
+            "project_id": str(project.id),
+            "attractiveness": count,
+            "user_selected": user_selected
+        })
+    
+    @action(detail=True, methods=["post"], url_path="attractiveness/toggle", permission_classes=[IsAuthenticated])
+    def toggle_attractiveness(self, request, pk=None):
+        """
+        Toggle user's 'attractiveness' (heart) on this project.
+        - Allowed ONLY while the project can be selected (SELECTION_ACTIVE).
+        - After selection is finished, we lock the count (no like/unlike).
+        """
+        from apps.project.models import ProjectAttractiveness
+        from apps.project.services import can_select_projects, count_project_attractiveness
+
+        project = self.get_object()
+
+        # Freeze after selection phase
+        if not can_select_projects(project): 
+            return Response(
+                {"detail": "Attractiveness is locked for this project."},
+                status=status.HTTP_423_LOCKED
+            )
+
+        obj, created = ProjectAttractiveness.objects.get_or_create(user=request.user, project=project)
+        if created:
+            user_selected = True   # just hearted
+        else:
+            # toggle off (unheart)
+            obj.delete()
+            user_selected = False
+
+        count = count_project_attractiveness(project.id)
+
+        # keep keys the same to avoid frontend changes
+        return Response({
+            "project_id": str(project.id),
+            "attractiveness": count,
+            "user_selected": user_selected
+        }, status=status.HTTP_200_OK)
+
+    def _get_applied_filters(self, query_params):
+        """Extract information about currently applied filters"""
+        applied = []
+        
+        filter_mappings = {
+            'title': 'عنوان',
+            'search': 'جستجو کلی', 
+            'company': 'شرکت',
+            'study_fields': 'رشته‌های تحصیلی',
+            'tags': 'کلیدواژه‌ها',
+            'tag_category': 'دسته‌بندی تگ'
+        }
+        
+        for param, label in filter_mappings.items():
+            value = query_params.get(param)
+            if value:
+                applied.append({
+                    'key': param,
+                    'label': label,
+                    'value': value,
+                    'display_value': self._format_filter_display_value(param, value)
+                })
+        
+        return applied
+
+    def _format_filter_display_value(self, param, value):
+        """Format filter values for display"""
+        if param == 'study_fields':
+            try:
+                from apps.settings.models import StudyField
+                field_ids = [int(id.strip()) for id in value.split(',') if id.strip().isdigit()]
+                fields = StudyField.objects.filter(id__in=field_ids)
+                return ', '.join([field.title for field in fields])
+            except:
+                return value
+        
+        elif param == 'tags':
+            try:
+                from apps.project.models import Tag
+                # Handle both tag IDs and names
+                tag_values = [v.strip() for v in value.split(',')]
+                tag_ids = [v for v in tag_values if v.isdigit()]
+                tag_names = [v for v in tag_values if not v.isdigit()]
+                
+                tags = Tag.objects.filter(
+                    models.Q(id__in=tag_ids) | models.Q(name__in=tag_names)
+                )
+                return ', '.join([tag.name for tag in tags])
+            except:
+                return value
+        
+        elif param == 'tag_category':
+            category_map = {
+                'SKILL': 'مهارت',
+                'TECH': 'فناوری', 
+                'DOMAIN': 'حوزه',
+                'KEYWORD': 'کلیدواژه'
+            }
+            return category_map.get(value, value)
+        
+        return value
+
+    def _get_filter_metadata(self, request):
+        """Get metadata about available filters and their options"""
+        from apps.settings.models import StudyField
+        from apps.project.models import Tag
+        
+        # Get available study fields (only those used in projects)
+        available_study_fields = StudyField.objects.filter(
+            project__visible=True,
+            project__is_active=True
+        ).distinct().values('id', 'title')
+        
+        # Get available tags by category
+        available_tags = Tag.objects.filter(
+            projects__visible=True,
+            projects__is_active=True
+        ).distinct().values('id', 'name', 'category')
+        
+        # Group tags by category
+        tags_by_category = {}
+        for tag in available_tags:
+            category = tag['category']
+            if category not in tags_by_category:
+                tags_by_category[category] = []
+            tags_by_category[category].append({
+                'id': tag['id'],
+                'name': tag['name']
+            })
+        
+        # Get popular companies (for suggestions)
+        from django.db.models import Count
+        popular_companies = Project.objects.filter(
+            visible=True, 
+            is_active=True
+        ).values('company').annotate(
+            project_count=Count('id')
+        ).order_by('-project_count')[:10]
+        
+        return {
+            'study_fields': {
+                'type': 'multiselect',
+                'label': 'رشته‌های تحصیلی',
+                'options': list(available_study_fields),
+                'param': 'study_fields'
+            },
+            'tags': {
+                'type': 'multiselect',
+                'label': 'کلیدواژه‌ها',
+                'options_by_category': tags_by_category,
+                'param': 'tags'
+            },
+            'tag_category': {
+                'type': 'select',
+                'label': 'دسته‌بندی کلیدواژه',
+                'options': [
+                    {'value': 'SKILL', 'label': 'مهارت'},
+                    {'value': 'TECH', 'label': 'فناوری'},
+                    {'value': 'DOMAIN', 'label': 'حوزه'},
+                    {'value': 'KEYWORD', 'label': 'کلیدواژه'}
+                ],
+                'param': 'tag_category'
+            },
+            'company': {
+                'type': 'text',
+                'label': 'شرکت',
+                'suggestions': [c['company'] for c in popular_companies],
+                'param': 'company'
+            },
+            'title': {
+                'type': 'text',
+                'label': 'عنوان پروژه',
+                'param': 'title'
+            },
+            'search': {
+                'type': 'text',
+                'label': 'جستجو در همه فیلدها',
+                'param': 'search',
+                'description': 'جستجو در عنوان، توضیحات، شرکت، کلیدواژه‌ها و نام راهبر'
+            }
+        }
+
+    def _get_sorting_options(self):
+        """Get available sorting options"""
+        return [
+            {
+                'value': '-created_at',
+                'label': 'جدیدترین',
+                'description': 'بر اساس تاریخ ایجاد (جدید به قدیم)'
+            },
+            {
+                'value': 'created_at', 
+                'label': 'قدیمی‌ترین',
+                'description': 'بر اساس تاریخ ایجاد (قدیم به جدید)'
+            },
+            {
+                'value': '-allocations_count',
+                'label': 'محبوب‌ترین',
+                'description': 'بر اساس تعداد انتخاب توسط کاربران'
+            },
+            {
+                'value': '-tags_count',
+                'label': 'بیشترین کلیدواژه',
+                'description': 'بر اساس تعداد کلیدواژه‌ها'
+            },
+            {
+                'value': 'title',
+                'label': 'ترتیب الفبایی (الف-ی)',
+                'description': 'بر اساس عنوان پروژه'
+            },
+            {
+                'value': '-title',
+                'label': 'ترتیب الفبایی (ی-الف)',
+                'description': 'بر اساس عنوان پروژه (معکوس)'
+            }
+        ]
+
+    def get_serializer_context(self):
+        """
+        Pass study field IDs into the serializer context so it can
+        set the M2M after create/update.
+        Works for both JSON and multipart.
+        """
+        ctx = super().get_serializer_context()
+        data = self.request.data
+        if hasattr(data, "getlist"):  # multipart/form-data
+            ids = data.getlist("study_fields[]") or data.getlist("study_fields")
+        else:                         # application/json
+            ids = data.get("study_fields") or data.get("study_fields[]")
+
+        # normalize to a list of ints/strings
+        if ids is None:
+            ids = []
+        elif not isinstance(ids, (list, tuple)):
+            ids = [ids]
+
+        ctx["study_fields_ids"] = ids
+        return ctx
+
+    def perform_create(self, serializer):
+        """
+        Validate presence of study_fields in request (dev requirement),
+        then save. Serializer should read `study_fields_ids` from context.
+        """
+        data = self.request.data
+        if hasattr(data, "getlist"):
+            ids = data.getlist("study_fields[]") or data.getlist("study_fields")
+        else:
+            ids = data.get("study_fields") or data.get("study_fields[]")
+
+        if not ids:
+            raise ValidationError("رشته های تحصیلی را وارد کنید!")
+
+        serializer.save()
+
+    def get_queryset(self):
+        """Filter queryset based on user role and project status"""
+        qs = super().get_queryset()
+        
+        # For regular users, show all projects but mark inactive ones
+        if hasattr(self.request.user, 'role'):
+            if self.request.user.role == 1:  # Regular user
+                # Show all visible projects, both active and inactive
+                qs = qs.filter(visible=True)
+            elif self.request.user.role == 2:  # Admin
+                # Show all projects for admins
+                pass
+        else:
+            # Anonymous users only see active, visible projects
+            qs = qs.filter(visible=True, is_active=True)
+            
+        return qs
 
     def get_serializer_class(self):
+        """Use appropriate serializer based on user role"""
         if isinstance(self.request.user, User):
             if self.request.user.role == 1:
                 return serializers.UserProjectSerializer
         return super().get_serializer_class()
 
-    def perform_create(self, serializer):
-        study_fields = self.request.data.getlist("study_fields[]", [])
-
-        if not study_fields:
-            raise ValidationError("رشته های تحصیلی را وارد کنید!")
-
-        valid_study_field = [str(field.id) for field in models.StudyField.objects.all()]
-        final_study_fields = []
-
-        for study_field in study_fields:
-            if study_field not in valid_study_field:
-                new_field = models.StudyField.objects.create(title=study_field)
-                final_study_fields.append(new_field.id)
-            else:
-                final_study_fields.append(study_field)
-
-        code = generate_project_unique_code()
-        created_project = serializer.save(code=code)
-        created_project.study_fields.add(*final_study_fields)
-
     def perform_update(self, serializer):
-        image = self.request.data.get("image", None)
-        video = self.request.data.get("video", None)
-        file = self.request.data.get("file", None)
-        is_video_deleted = self.request.data.get("is_video_deleted", False)
+        """
+        Update a project.
 
-        valid_study_field = [str(field.id) for field in models.StudyField.objects.all()]
-        final_study_fields = []
+        - PUT: require non-empty study_fields (same rule as create).
+        - PATCH: study_fields is optional; if it's present (even empty list),
+                the serializer can update/clear it. If it's omitted, leave as-is.
+        - Works for both JSON and multipart/form-data.
+        - Clears list/homepage caches and a per-project cache key.
+        """
+        data = self.request.data
+        method = self.request.method.upper()
 
-        if image or video or file:
-            study_fields = self.request.data.getlist("study_fields[]", [])
+        if hasattr(data, "getlist"):  # multipart/form-data
+            ids = data.getlist("study_fields[]") or data.getlist("study_fields")
+            provided = ("study_fields[]" in data) or ("study_fields" in data)
+        else:                         # application/json
+            ids = data.get("study_fields") or data.get("study_fields[]")
+            provided = ("study_fields" in data) or ("study_fields[]" in data)
 
-        else:
-            study_fields = self.request.data.get("study_fields", None)
-
-        if not study_fields:
+        # Enforce the same requirement as create on full updates
+        if method == "PUT" and not ids:
             raise ValidationError("رشته های تحصیلی را وارد کنید!")
 
-        for study_field in study_fields:
-            if study_field not in valid_study_field:
-                new_field = models.StudyField.objects.create(title=study_field)
-                final_study_fields.append(new_field.id)
-            else:
-                final_study_fields.append(study_field)
+        instance = serializer.save()  # serializer will read `study_fields_ids` from context
 
-        updated_project = serializer.save()
-        if is_video_deleted:
-            updated_project.video = None
-            updated_project.save()
+        # Bust caches
+        cache.delete_many([
+            "active_projects_list",
+            "project_status_stats",
+            "homepage_projects",
+            f"project_detail_{instance.pk}",
+        ])
 
-        updated_project.study_fields.set(final_study_fields)
 
-    def perform_destroy(self, instance):
+    # def perform_destroy(self, instance):
+    #     """Clear caches after project deletion"""
+    #     super().perform_destroy(instance)
+        
+    #     # Clear related caches
+    #     cache.delete_many([
+    #         'active_projects_list',
+    #         'project_status_stats', 
+    #         'homepage_projects'
+    #     ])    
+
+def perform_destroy(self, instance):
+    # keep IDs/handles you might need after delete
+    pk = instance.pk
+    image = getattr(instance, "image", None)
+    video = getattr(instance, "video", None)
+    filef = getattr(instance, "file", None)
+
+    # delete DB row
+    super().perform_destroy(instance)
+
+    # OPTIONAL — clean up orphaned media files (ignore storage errors)
+    for f in (image, video, filef):
         try:
-            models.Task.objects.filter(project=instance).delete()
-            models.Scenario.objects.filter(project=instance).delete()
-            super().perform_destroy(instance)
+            if f and hasattr(f, "delete"):
+                f.delete(save=False)
+        except Exception:
+            pass
 
-        except ProtectedError:
-            raise ValidationError({"message": "قابلیت حذف وجود ندارد چون این پروژه در قسمت های دیگر استفاده شده است!"})
+    # invalidate caches
+    cache.delete_many([
+        "active_projects_list",
+        "project_status_stats",
+        "homepage_projects",
+        f"project_detail_{pk}",   # object-scoped key if you use one
+    ])
 
     @action(methods=["get"], detail=False, serializer_class=serializers.ProjectListSerializer)
     def projects_list(self, request, *args, **kwargs):
@@ -189,6 +551,44 @@ class ProjectViewSet(ModelViewSet):
             }
         )
 
+    @action(detail=False, methods=['get'])
+    def active_projects(self, request):
+        """Get only active projects - cached endpoint"""
+        cache_key = 'active_projects_list'
+        cached_data = cache.get(cache_key)
+        
+        if cached_data is None:
+            active_projects = self.get_queryset().filter(
+                is_active=True, 
+                visible=True
+            )
+            
+            # Use pagination
+            page = self.paginate_queryset(active_projects)
+            if page is not None:
+                serializer = self.get_serializer(page, many=True)
+                cached_data = self.get_paginated_response(serializer.data).data
+                cache.set(cache_key, cached_data, 1800)  # Cache for 30 minutes
+                return self.get_paginated_response(serializer.data)
+            
+            serializer = self.get_serializer(active_projects, many=True)
+            cached_data = serializer.data
+            cache.set(cache_key, cached_data, 1800)
+        
+        return Response(cached_data)
+
+    @action(detail=False, methods=['get'], permission_classes=[IsAdminOrReadOnlyPermission])
+    def inactive_projects(self, request):
+        """Get inactive projects - admin only"""
+        inactive_projects = self.get_queryset().filter(is_active=False)
+        
+        page = self.paginate_queryset(inactive_projects)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        
+        serializer = self.get_serializer(inactive_projects, many=True)
+        return Response(serializer.data)
 
 class ProjectPriorityViewSet(ModelViewSet):
     serializer_class = serializers.ProjectPrioritySerializer
@@ -420,9 +820,23 @@ class ProjectDerivativesVS(ModelViewSet):
 
 
 class HomePageProjectViewSet(mixins.ListModelMixin, GenericViewSet):
+    """Updated homepage projects - only shows active projects"""
     serializer_class = serializers.HomePageProjectSerializer
-    queryset = models.Project.objects.filter(visible=True)
+    queryset = models.Project.objects.filter(visible=True, is_active=True)  # UPDATED
     permission_classes = [AllowAny]
+
+    def list(self, request, *args, **kwargs):
+        """Cached homepage project list"""
+        cache_key = 'homepage_projects'
+        cached_data = cache.get(cache_key)
+        
+        if cached_data is None:
+            response = super().list(request, *args, **kwargs)
+            cached_data = response.data
+            cache.set(cache_key, cached_data, 3600)  # Cache for 1 hour
+            return response
+        
+        return Response(cached_data)
 
 
 class UserScenarioTaskFileAPV(views.APIView):

@@ -3,6 +3,14 @@ alias python=python3
 # install pre commit
 poetry run pre-commit install
 
+# generate RSA keys for development/testing if they don't exist
+if [ ! -f "keys/test/private_key.pem" ] || [ ! -f "keys/test/public_key.pem" ]; then
+    echo "Generating RSA keys for development..."
+    poetry run python generate_keys.py
+else
+    echo "RSA keys already exist, skipping generation"
+fi
+
 # create data base
 poetry run python manage.py migrate
 

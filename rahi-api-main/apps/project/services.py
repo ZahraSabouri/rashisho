@@ -1,3 +1,4 @@
+from __future__ import annotations
 import datetime
 import re
 
@@ -7,6 +8,134 @@ from rest_framework.response import Response
 
 from apps.account.models import User
 from apps.project import models
+
+
+# ---------------- project attractiveness selection phase services
+
+def get_project_phase(project):
+    """
+    Get current phase for a specific project.
+    Uses project.current_phase property which handles auto-calculation.
+    """
+    if not project:
+        return models.ProjectPhase.BEFORE_SELECTION
+    return project.current_phase
+
+def is_selection_phase_active(project=None):
+    """
+    Check if selection is active for a project.
+    For backward compatibility, can be called without project.
+    """
+    if project:
+        return project.current_phase == models.ProjectPhase.SELECTION_ACTIVE
+    
+    # If no project specified, check if ANY project is in selection phase
+    return models.Project.objects.filter(
+        selection_phase=models.ProjectPhase.SELECTION_ACTIVE,
+        is_active=True
+    ).exists()
+
+def can_show_attractiveness(project=None):
+    """
+    Should attractiveness count be visible for this project?
+    Shows during SELECTION_ACTIVE and SELECTION_FINISHED phases.
+    """
+    if project:
+        return project.show_attractiveness
+    
+    # Global check - show if any project allows it
+    return models.Project.objects.filter(
+        selection_phase__in=[
+            models.ProjectPhase.SELECTION_ACTIVE,
+            models.ProjectPhase.SELECTION_FINISHED
+        ]
+    ).exists()
+
+def can_select_projects(project=None):
+    """
+    Can users currently select this project?
+    Only during SELECTION_ACTIVE phase.
+    """
+    if project:
+        return project.can_be_selected
+    
+    # Global check
+    return models.Project.objects.filter(
+        selection_phase=models.ProjectPhase.SELECTION_ACTIVE,
+        is_active=True,
+        visible=True
+    ).exists()
+
+def count_project_attractiveness(project_id) -> int:
+    from apps.project.models import ProjectAttractiveness
+    return ProjectAttractiveness.objects.filter(project_id=project_id).count()
+
+def get_projects_by_phase(phase=None):
+    """Get projects filtered by phase"""
+    queryset = models.Project.objects.all()
+    if phase:
+        queryset = queryset.filter(selection_phase=phase)
+    return queryset
+
+def bulk_update_project_phases(project_ids, new_phase, update_dates=False, 
+                               start_date=None, end_date=None):
+    """
+    Bulk update project phases.
+    Useful for management commands or admin actions.
+    """
+    projects = models.Project.objects.filter(id__in=project_ids)
+    
+    update_fields = ['selection_phase']
+    
+    for project in projects:
+        project.selection_phase = new_phase
+        
+        if update_dates:
+            if start_date:
+                project.selection_start = start_date
+                update_fields.append('selection_start')
+            if end_date:
+                project.selection_end = end_date
+                update_fields.append('selection_end')
+    
+    # Bulk update for performance
+    models.Project.objects.bulk_update(projects, update_fields)
+    
+    return projects.count()
+
+def update_expired_project_phases():
+    """
+    Update projects that should auto-transition to FINISHED phase.
+    Call this in a periodic task or management command.
+    """
+    now = datetime.timezone.now()
+    
+    expired_projects = models.Project.objects.filter(
+        auto_phase_transition=True,
+        selection_phase=models.ProjectPhase.SELECTION_ACTIVE,
+        selection_end__lt=now
+    )
+    
+    count = expired_projects.update(selection_phase=models.ProjectPhase.SELECTION_FINISHED)
+    return count
+
+def activate_ready_projects():
+    """
+    Activate projects that should transition to SELECTION_ACTIVE phase.
+    Call this in a periodic task or management command.
+    """
+    now = datetime.timezone.now()
+    
+    ready_projects = models.Project.objects.filter(
+        auto_phase_transition=True,
+        selection_phase=models.ProjectPhase.BEFORE_SELECTION,
+        selection_start__lte=now,
+        selection_end__gt=now
+    )
+    
+    count = ready_projects.update(selection_phase=models.ProjectPhase.SELECTION_ACTIVE)
+    return count
+
 
 
 def generate_project_unique_code():

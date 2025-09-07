@@ -10,5 +10,21 @@ REST_FRAMEWORK = {
     "DEFAULT_PAGINATION_CLASS": "apps.api.pagination.Pagination",
     "PAGE_SIZE": 10,
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
-    "DEFAULT_AUTHENTICATION_CLASSES": ("apps.api.authentication.GetUserProfileAuthentication",),
+
+    "DEFAULT_AUTHENTICATION_CLASSES": (
+        "apps.api.authentication.GetUserProfileAuthentication",
+    ),
+}
+
+SPECTACULAR_SETTINGS = {
+    "TITLE": "Rahisho API",
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
+
+    # Swagger UI behavior
+    "SWAGGER_UI_SETTINGS": {
+        "persistAuthorization": True,
+        "displayRequestDuration": True,
+    },
+
 }

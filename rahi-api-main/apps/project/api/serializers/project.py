@@ -3,6 +3,9 @@ from django.shortcuts import get_object_or_404
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
 
+from drf_spectacular.utils import extend_schema_field
+from drf_spectacular.types import OpenApiTypes
+
 from apps.account.models import User
 from apps.common.serializers import CustomSlugRelatedField
 from apps.project import models
@@ -12,6 +15,8 @@ from apps.settings.api.serializers.study_field import StudyFieldSerializer
 from apps.project.api.serializers.tag import ProjectTagSerializer
 from apps.resume.models import Resume
 from apps.settings.api.serializers.study_field import StudyFieldSerializer
+from apps.project.models import Project
+from apps.project.services import can_select_projects, can_show_attractiveness, count_project_attractiveness, is_selection_phase_active
 
 
 class ScenarioSerializer(serializers.ModelSerializer):
@@ -100,9 +105,15 @@ class ProjectDerivativesSerializer(serializers.ModelSerializer):
 
 
 class ProjectSerializer(serializers.ModelSerializer):
+    """
+    Main project serializer with comment integration.
+    Includes comment counts, latest comments, and statistics.
+    """
     project_scenario = ScenarioSerializer(many=True, read_only=True)
     project_task = TaskSerializer(many=True, read_only=True)
     study_fields = StudyFieldSerializer(many=True, read_only=True)
+    study_field_ids = serializers.ListField(
+            child=serializers.IntegerField(), write_only=True, required=False, allow_empty=True)
     tags = ProjectTagSerializer(many=True, read_only=True)
     tag_ids = serializers.ListField(
         child=serializers.UUIDField(),
@@ -112,67 +123,158 @@ class ProjectSerializer(serializers.ModelSerializer):
         help_text="فهرست IDهای تگ‌هایی که می‌خواهید به پروژه اضافه کنید"
     )
 
+    # Comment-related fields - declared as class attributes
+    comments_count = serializers.ReadOnlyField()
+    has_comments = serializers.ReadOnlyField()
+    latest_comments = serializers.SerializerMethodField()
+    comment_stats = serializers.SerializerMethodField()
+
+    status_display = serializers.CharField(read_only=True)
+    can_be_selected = serializers.BooleanField(read_only=True)
+
+    current_phase = serializers.CharField(read_only=True)
+    phase_display = serializers.CharField(read_only=True)
+    can_be_selected = serializers.BooleanField(read_only=True)
+    show_attractiveness = serializers.BooleanField(read_only=True)
+    
+    attractiveness = serializers.SerializerMethodField()
+
     class Meta:
         model = models.Project
         exclude = ["deleted", "deleted_at"]
+        read_only_fields = ['code', 'status_display', 'can_be_selected',
+                            'comments_count', 'has_comments', 
+                            'current_phase', 'phase_display', 'show_attractiveness']
+
+    def _extract_study_field_ids(self, validated_data):
+        ctx_ids = self.context.get("study_fields_ids", None)
+        if ctx_ids is not None:
+            return ctx_ids
+        return validated_data.pop("study_field_ids", [])
+
+    @extend_schema_field(OpenApiTypes.INT)
+    def get_attractiveness(self, obj):
+        """
+        Show attractiveness count based on project's current phase.
+        Only visible during SELECTION_ACTIVE and SELECTION_FINISHED phases.
+        """
+        if can_show_attractiveness(obj):
+            return count_project_attractiveness(obj.id)
+        return None
 
     def create(self, validated_data):
-        # Extract tag_ids and study_fields_ids before creating project
-        tag_ids = validated_data.pop('tag_ids', [])
-        study_fields_ids = self.context.get('study_fields_ids', [])
-        
-        # Create the project
+        tag_ids = validated_data.pop("tag_ids", [])
+        study_ids = self._extract_study_field_ids(validated_data)
+
         project = super().create(validated_data)
-        
-        # Set study fields (your existing logic)
-        if study_fields_ids:
-            project.study_fields.set(study_fields_ids)
-        
-        # ADD THIS: Set tags
+
+        if study_ids:
+            project.study_fields.set(study_ids)
         if tag_ids:
-            # Validate that all tag IDs exist
-            existing_tags = models.Tag.objects.filter(id__in=tag_ids)
-            if existing_tags.count() != len(tag_ids):
-                # Clean up and raise error
-                project.delete()
-                raise ValidationError("برخی از تگ‌های انتخاب شده معتبر نیستند")
-            project.tags.set(existing_tags)
-        
+            from apps.project.models import Tag
+            existing = Tag.objects.filter(id__in=tag_ids)
+            if existing.count() != len(tag_ids):
+                raise ValidationError("یک یا چند تگ انتخابی معتبر نیست")
+            project.tags.set(tag_ids)
         return project
 
     def update(self, instance, validated_data):
-        # Extract tag_ids before updating
-        tag_ids = validated_data.pop('tag_ids', None)
-        study_fields_ids = self.context.get('study_fields_ids', None)
-        
-        # Update the project
+        tag_ids = validated_data.pop("tag_ids", None)
+        study_ids_marker = self.context.get("study_fields_ids", None)
+        if study_ids_marker is None and "study_field_ids" in validated_data:
+            study_ids_marker = validated_data.pop("study_field_ids")
+
         instance = super().update(instance, validated_data)
-        
-        # Update study fields if provided (your existing logic)
-        if study_fields_ids is not None:
-            instance.study_fields.set(study_fields_ids)
-        
-        # ADD THIS: Update tags if provided
+
+        if study_ids_marker is not None:
+            instance.study_fields.set(study_ids_marker)
+
         if tag_ids is not None:
             if tag_ids:
-                existing_tags = models.Tag.objects.filter(id__in=tag_ids)
-                if existing_tags.count() != len(tag_ids):
-                    raise ValidationError("برخی از تگ‌های انتخاب شده معتبر نیستند")
-                instance.tags.set(existing_tags)
-            else:
-                # Clear all tags if empty list provided
-                instance.tags.clear()
-        
-        return instance
+                from apps.project.models import Tag
+                existing = Tag.objects.filter(id__in=tag_ids)
+                if existing.count() != len(tag_ids):
+                    raise ValidationError("یک یا چند تگ انتخابی معتبر نیست")
+            instance.tags.set(tag_ids)
 
+        return instance
+    
     def to_representation(self, instance):
         rep = super().to_representation(instance)
         rep["image"] = instance.image.url if instance.image else None
         rep["video"] = instance.video.url if instance.video else None
         rep["file"] = instance.file.url if instance.file else None
-        # Include tag count for convenience
         rep["tags_count"] = instance.tags.count()
+        if rep.get("attractiveness") is None:
+            rep.pop("attractiveness", None)
         return rep
+
+    def get_latest_comments(self, obj):
+        """دریافت آخرین نظرات برای نمایش در لیست پروژه‌ها"""
+        try:
+            from apps.comments.utils import format_comment_for_display
+            comments = obj.get_latest_comments(limit=3)
+            return [
+                format_comment_for_display(comment, self.context.get('request', {}).user)
+                for comment in comments
+            ]
+        except Exception:
+            return []
+
+    def get_comment_stats(self, obj):
+        """دریافت آمار کلی نظرات"""
+        try:
+            return obj.get_comment_statistics()
+        except Exception:
+            return {}
+
+
+class ProjectDetailSerializer(ProjectSerializer):
+    """
+    Detailed project serializer with additional comment data for project detail pages.
+    Includes recent comments and top-rated comments.
+    """
+
+    recent_comments = serializers.SerializerMethodField()
+    top_comments = serializers.SerializerMethodField()
+
+    class Meta(ProjectSerializer.Meta):
+        # Inherit from parent but don't override exclude/fields
+        pass
+
+    def get_recent_comments(self, obj):
+        """نظرات اخیر برای صفحه جزئیات"""
+        try:
+            from apps.comments.utils import format_comment_for_display
+            comments = obj.get_latest_comments(limit=10)
+            return [
+                format_comment_for_display(comment, self.context.get('request', {}).user)
+                for comment in comments
+            ]
+        except Exception:
+            return []
+
+    def get_top_comments(self, obj):
+        """نظرات برتر بر اساس تعداد لایک"""
+        try:
+            from apps.comments.models import Comment
+            from apps.comments.utils import format_comment_for_display
+            from django.contrib.contenttypes.models import ContentType
+
+            content_type = ContentType.objects.get_for_model(models.Project)
+            top_comments = Comment.objects.filter(
+                content_type=content_type,
+                object_id=obj.id,
+                status='APPROVED',
+                parent__isnull=True
+            ).order_by('-likes_count', '-created_at')[:5]
+
+            return [
+                format_comment_for_display(comment, self.context.get('request', {}).user)
+                for comment in top_comments
+            ]
+        except Exception:
+            return []
 
 
 class UserProjectSerializer(serializers.ModelSerializer):
@@ -180,6 +282,10 @@ class UserProjectSerializer(serializers.ModelSerializer):
     project_task = serializers.SerializerMethodField()
     study_fields = StudyFieldSerializer(many=True, read_only=True)
     tags = ProjectTagSerializer(many=True, read_only=True)
+
+    current_phase = serializers.CharField(read_only=True)
+    can_be_selected = serializers.BooleanField(read_only=True)
+    attractiveness = serializers.SerializerMethodField()
 
     class Meta:
         model = models.Project
@@ -205,13 +311,29 @@ class UserProjectSerializer(serializers.ModelSerializer):
                 return TaskSerializer(tasks, many=True).data
         return None
 
+    @extend_schema_field(OpenApiTypes.INT)
+    def get_attractiveness(self, obj):
+        """Show attractiveness based on project phase"""
+        if can_show_attractiveness(obj):
+            return count_project_attractiveness(obj.id)
+        return None
+
     def to_representation(self, instance):
         rep = super().to_representation(instance)
         rep["image"] = instance.image.url if instance.image else None
         rep["video"] = instance.video.url if instance.video else None
         rep["file"] = instance.file.url if instance.file else None
-
         rep["tags_count"] = instance.tags.count()
+        if not instance.is_active:
+            rep['is_selectable'] = False
+            rep['status_message'] = "این پروژه در حال حاضر غیرفعال است"
+        else:
+            rep['is_selectable'] = True
+            rep['status_message'] = None
+
+        if rep.get("attractiveness") is None:
+            rep.pop("attractiveness", None)
+
         return rep
 
 
@@ -232,27 +354,38 @@ class ProjectPrioritySerializer(serializers.ModelSerializer):
         exclude = ["deleted", "deleted_at", "created_at", "updated_at"]
         read_only_fields = ["user"]
 
-    def validate_priority(self, value):
-        keys = set(value.keys())
-        priority_keys = {"1", "2", "3", "4", "5"}
-        values_list = []
-
-        for item in value.values():
-            if item is not None:
-                values_list.append(item)
-
-        for item in values_list:
-            if not models.Project.objects.filter(id=item).exists():
-                raise ValidationError("یک پروژه معتبر انتخاب کنید!")
-
-        if len(set(values_list)) != len(values_list):
-            raise ValidationError("هر پروژه فقط یکبار می تواند انتخاب شود!")
-
-        for key in keys:
-            if key not in priority_keys:
-                raise ValidationError("فرمت دیکشنری ارسالی صحیح نمی باشد!")
-
-        return value
+    def create(self, validated_data):
+        instance = super().create(validated_data)
+        self._sync_project_selections(instance)
+        return instance
+    
+    def update(self, instance, validated_data):
+        instance = super().update(instance, validated_data)
+        self._sync_project_selections(instance)
+        return instance
+    
+    def _sync_project_selections(self, instance):
+        """
+        Sync JSONB priority data to ProjectSelection table.
+        This allows fast counting while maintaining backward compatibility.
+        """
+        from apps.project.models import ProjectSelection
+        
+        # Delete old selections for this user
+        ProjectSelection.objects.filter(user=instance.user).delete()
+        
+        # Create new selections based on current priority JSONB
+        for priority_str, project_id in instance.priority.items():
+            if project_id:  # Skip null/empty values
+                try:
+                    ProjectSelection.objects.create(
+                        user=instance.user,
+                        project_id=project_id,
+                        priority=int(priority_str)
+                    )
+                except (ValueError, TypeError):
+                    # Skip invalid priority values
+                    continue
 
     def to_representation(self, instance: models.ProjectAllocation):
         result = super().to_representation(instance)
@@ -269,7 +402,39 @@ class ProjectPrioritySerializer(serializers.ModelSerializer):
             "resume": user.resume.id if Resume.objects.filter(user=user).exists() else None,
         }
         return result
+           
+    def validate_priority(self, value):
+        """Enhanced validation that checks if projects can be selected"""
+        # Existing validation logic...
+        keys = set(value.keys())
+        priority_keys = {"1", "2", "3", "4", "5"}
+        values_list = []
 
+        for item in value.values():
+            if item is not None:
+                values_list.append(item)
+
+        # Check if projects exist AND can be selected
+        for project_id in values_list:
+            try:
+                project = models.Project.objects.get(id=project_id)
+                if not can_select_projects(project):
+                    raise ValidationError(
+                        f"پروژه '{project.title}' در حال حاضر قابل انتخاب نیست. "
+                        f"فاز فعلی: {project.phase_display}"
+                    )
+            except models.Project.DoesNotExist:
+                raise ValidationError("یک پروژه معتبر انتخاب کنید!")
+
+        if len(set(values_list)) != len(values_list):
+            raise ValidationError("هر پروژه فقط یکبار می تواند انتخاب شود!")
+
+        for key in keys:
+            if key not in priority_keys:
+                raise ValidationError("فرمت دیکشنری ارسالی صحیح نمی باشد!")
+
+        return value
+    
 
 class ProjectAllocationSerializer(serializers.ModelSerializer):
     class Meta:
@@ -344,10 +509,19 @@ class AdminFinalRepSerializerV2(serializers.ModelSerializer):
 class HomePageProjectSerializer(serializers.ModelSerializer):
     study_fields = StudyFieldSerializer(many=True, read_only=True)
     tags = ProjectTagSerializer(many=True, read_only=True)
+    attractiveness = serializers.SerializerMethodField()
 
     class Meta:
         model = models.Project
-        exclude = ["deleted", "deleted_at", "created_at", "updated_at"]
+        fields = [
+            'id', 'title', 'company', 'description', 'image',
+            'tags', 'study_fields', 'is_active', 'attractiveness'
+        ]
+
+    def get_attractiveness(self, obj):
+        if can_show_attractiveness(obj):
+            return count_project_attractiveness(obj.id)
+        return None
 
     def to_representation(self, instance):
         rep = super().to_representation(instance)

@@ -9,10 +9,12 @@ class TagSerializer(serializers.ModelSerializer):
     Used for listing, creating, updating tags.
     """
     project_count = serializers.SerializerMethodField()
+    category_display = serializers.CharField(source='get_category_display', read_only=True)
     
     class Meta:
         model = models.Tag
         exclude = ["deleted", "deleted_at", "created_at", "updated_at"]
+        read_only_fields = ['id', 'created_at', 'updated_at']
     
     def get_project_count(self, obj):
         """Return number of projects using this tag"""
@@ -36,6 +38,13 @@ class TagSerializer(serializers.ModelSerializer):
         if not value.replace('-', '').replace('_', '').replace(' ', '').isalnum():
             raise serializers.ValidationError("نام تگ فقط می‌تواند شامل حروف، اعداد، خط تیره و زیرخط باشد")
             
+        queryset = models.Tag.objects.filter(name=value)
+        if self.instance:
+            queryset = queryset.exclude(pk=self.instance.pk)
+        
+        if queryset.exists():
+            raise serializers.ValidationError("تگی با این نام قبلاً ثبت شده است")
+        
         return value
 
 
@@ -58,9 +67,11 @@ class ProjectTagSerializer(serializers.ModelSerializer):
     Lightweight serializer for tags when displayed within project context.
     Used in project detail views and related project suggestions.
     """
+    category_display = serializers.CharField(source='get_category_display', read_only=True)
+    
     class Meta:
         model = models.Tag
-        fields = ["id", "name", "description"]
+        fields = ["id", "name", "category", "category_display", "description"]
 
 
 class RelatedProjectSerializer(serializers.ModelSerializer):

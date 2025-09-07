@@ -47,25 +47,44 @@ class GetUserProfileAuthentication(JWTAuthentication):
         validated_token["user_id"] = token_user.pk
         return super().get_user(validated_token)
 
+    # def get_validated_token(self, raw_token: bytes) -> Token:
+    #     messages = []
+    #     try:
+    #         token = OauthToken(raw_token)
+    #         if settings.IS_TEST:
+    #             return token.validate_test_token()
+    #         return token.validated_token()
+    #     except InvalidTokenError as e:
+    #         messages.append(
+    #             {
+    #                 "token_class": OauthToken.__name__,
+    #                 "token_type": OauthToken.token_type,
+    #                 "message": e.args[0],
+    #             }
+    #         )
+
+    #     raise InvalidToken(
+    #         {
+    #             "detail": _("Given token not valid for any token type"),
+    #             "messages": messages,
+    #         }
+    #     )
     def get_validated_token(self, raw_token: bytes) -> Token:
         messages = []
+        token = OauthToken(raw_token)
         try:
-            token = OauthToken(raw_token)
-            if settings.IS_TEST:
-                return token.validate_test_token()
-            return token.validated_token()
+            # In development, first try the TEST public key
+            if getattr(settings, "DEBUG", False):
+                try:
+                    return token.validate_test_token()        # keys/test/public_key.pem
+                except InvalidTokenError:
+                    pass
+            # Fallback to real SSO verification
+            return token.validated_token()                    # keys/public_key.pem + audience
         except InvalidTokenError as e:
-            messages.append(
-                {
-                    "token_class": OauthToken.__name__,
-                    "token_type": OauthToken.token_type,
-                    "message": e.args[0],
-                }
-            )
-
-        raise InvalidToken(
-            {
-                "detail": _("Given token not valid for any token type"),
-                "messages": messages,
-            }
-        )
+            messages.append({
+                "token_class": OauthToken.__name__,
+                "token_type": OauthToken.token_type,
+                "message": e.args[0],
+            })
+            raise InvalidToken({"detail": _("Given token not valid for any token type"), "messages": messages})

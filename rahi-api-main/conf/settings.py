@@ -50,6 +50,7 @@ LOCAL_APPS = [
     "apps.public",
     "apps.project",
     "apps.community",
+    "apps.comments",
     "apps.access",
 
 ]
@@ -72,7 +73,6 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
-    "apps.api.middleware.DynamicRBACMiddleware",  # dynamic
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
@@ -158,6 +158,18 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 AUTH_USER_MODEL = "account.User"
 
 from conf.apps_settings.drf import REST_FRAMEWORK
+from conf.apps_settings.drf import SPECTACULAR_SETTINGS
+
+if DEBUG:
+    SPECTACULAR_SETTINGS.setdefault("TITLE", "Rahisho API (DEV)")
+    SPECTACULAR_SETTINGS.setdefault(
+        "DESCRIPTION",
+        "⚠️ **Development Mode** — The “DEV Tools” endpoints are for local testing only.",
+    )
+    tags = SPECTACULAR_SETTINGS.get("TAGS", [])
+    tags.append({"name": "DEV Tools", "description": "Development-only helpers (visible in DEBUG)."})
+    SPECTACULAR_SETTINGS["TAGS"] = tags
+
 from conf.apps_settings.sso import (
     CLIENT_ID,
     CLIENT_SECRET,
@@ -176,5 +188,20 @@ CACHES = {
     "default": {
         "BACKEND": "django.core.cache.backends.redis.RedisCache",
         "LOCATION": env.str("REDIS"),
+        "TIMEOUT": 300,
     }
 }
+
+# تنظیمات مخصوص سیستم نظرات
+COMMENTS_SETTINGS = {
+    'MIN_CONTENT_LENGTH': 5,
+    'MAX_CONTENT_LENGTH': 2000,
+    'EDIT_TIME_LIMIT': 900,  # 15 minutes in seconds
+    'AUTO_APPROVE_OLD_COMMENTS': True,
+    'OLD_COMMENT_THRESHOLD_DAYS': 7,
+    'CACHE_TIMEOUT': 300,  # 5 minutes
+    'ENABLE_EMAIL_NOTIFICATIONS': False,  # Future feature
+    'MAX_REPLY_DEPTH': 1,  # Only one level of replies
+    'PROFANITY_FILTER_ENABLED': False,  # Future feature
+    }
+
