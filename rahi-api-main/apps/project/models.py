@@ -1,4 +1,5 @@
 from datetime import timezone
+from django.conf import settings
 import filetype
 from django.contrib.auth import get_user_model
 from django.core.validators import MaxValueValidator, MinLengthValidator, MinValueValidator
@@ -105,6 +106,7 @@ def validate_user_task_file_type(value):
     if mime_type not in allowed_types:
         raise ValidationError("نوع فایل غیرمجاز است.")
 
+
 class ProjectPhase(models.TextChoices):
     BEFORE_SELECTION = "BEFORE", "قبل از انتخاب"
     SELECTION_ACTIVE = "ACTIVE", "در حال انتخاب" 
@@ -143,6 +145,34 @@ class ProjectSelection(BaseModel):
     
     def __str__(self):
         return f"{self.user.full_name} - {self.project.title} (اولویت {self.priority})"
+
+class ProjectAttractiveness(BaseModel):
+    """
+    One row == one user's 'heart' on one project.
+    - Users may heart multiple projects
+    - A user can only heart a project once
+    """
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="project_attractiveness_votes",
+        verbose_name="کاربر",
+    )
+    project = models.ForeignKey(
+        "project.Project",
+        on_delete=models.CASCADE,
+        related_name="attractiveness_votes",
+        verbose_name="پروژه",
+    )
+
+    class Meta(BaseModel.Meta):
+        unique_together = ("user", "project")
+        verbose_name = "رأی جذابیت"
+        verbose_name_plural = "رأی‌های جذابیت"
+
+    def __str__(self) -> str:
+        return f"{self.user_id} ❤️ {self.project_id}"
+
 
 class Project(BaseModel):
     code = models.CharField(max_length=300, unique=True, null=True, verbose_name="کد")
@@ -416,7 +446,6 @@ class Project(BaseModel):
         ).filter(
             shared_tags_count__gt=0
         ).order_by('-shared_tags_count')[:limit]
-
 
 class ProjectAllocation(BaseModel):
     user = models.OneToOneField(

@@ -67,12 +67,8 @@ def can_select_projects(project=None):
     ).exists()
 
 def count_project_attractiveness(project_id) -> int:
-    """
-    Count how many users selected this project at any priority.
-    Uses normalized ProjectSelection table for fast counting.
-    """
-    from apps.project.models import ProjectSelection
-    return ProjectSelection.objects.filter(project_id=project_id).count()
+    from apps.project.models import ProjectAttractiveness
+    return ProjectAttractiveness.objects.filter(project_id=project_id).count()
 
 def get_projects_by_phase(phase=None):
     """Get projects filtered by phase"""

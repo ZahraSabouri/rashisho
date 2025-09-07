@@ -92,6 +92,64 @@ class ProjectViewSet(ModelViewSet):
         
         return Response(response_data)
 
+    @action(methods=["get"], url_path="attractiveness", permission_classes=[AllowAny])
+    def attractiveness(self, request, pk=None):
+        from apps.project.services import can_show_attractiveness, count_project_attractiveness
+        from apps.project.models import ProjectAttractiveness
+
+        project = self.get_object()
+
+        if not can_show_attractiveness(project):
+            return Response({"project_id": str(project.id), "attractiveness": None, "user_selected": False})
+
+        count = count_project_attractiveness(project.id)
+        user_selected = False
+        u = request.user
+        if getattr(u, "is_authenticated", False):
+            user_selected = ProjectAttractiveness.objects.filter(user=u, project=project).exists()
+
+        return Response({
+            "project_id": str(project.id),
+            "attractiveness": count,
+            "user_selected": user_selected
+        })
+    
+    @action(methods=["post"], url_path="attractiveness/toggle", permission_classes=[IsAuthenticated])
+    def toggle_attractiveness(self, request, pk=None):
+        """
+        Toggle user's 'attractiveness' (heart) on this project.
+        - Allowed ONLY while the project can be selected (SELECTION_ACTIVE).
+        - After selection is finished, we lock the count (no like/unlike).
+        """
+        from apps.project.models import ProjectAttractiveness
+        from apps.project.services import can_select_projects, count_project_attractiveness
+
+        project = self.get_object()
+
+        # Freeze after selection phase
+        if not can_select_projects(project): 
+            return Response(
+                {"detail": "Attractiveness is locked for this project."},
+                status=status.HTTP_423_LOCKED
+            )
+
+        obj, created = ProjectAttractiveness.objects.get_or_create(user=request.user, project=project)
+        if created:
+            user_selected = True   # just hearted
+        else:
+            # toggle off (unheart)
+            obj.delete()
+            user_selected = False
+
+        count = count_project_attractiveness(project.id)
+
+        # keep keys the same to avoid frontend changes
+        return Response({
+            "project_id": str(project.id),
+            "attractiveness": count,
+            "user_selected": user_selected
+        }, status=status.HTTP_200_OK)
+
     def _get_applied_filters(self, query_params):
         """Extract information about currently applied filters"""
         applied = []

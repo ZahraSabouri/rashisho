@@ -8,6 +8,14 @@ from django.utils.safestring import mark_safe
 
 from apps.project import models
 
+from apps.project.models import ProjectAttractiveness
+
+@admin.register(ProjectAttractiveness)
+class ProjectAttractivenessAdmin(admin.ModelAdmin):
+    list_display = ("id", "project", "user", "created_at")
+    search_fields = ("project__title", "user__username", "user__user_info__first_name", "user__user_info__last_name")
+    autocomplete_fields = ("project", "user")
+
 
 class ProjectStatusFilter(admin.SimpleListFilter):
     """Custom filter for project status"""
@@ -318,7 +326,6 @@ class UserScenarioTaskFileAdmin(admin.ModelAdmin):
     search_fields = ["user__user_info__national_id"]
 
 
-# IMPORTANT: Unregister the existing Project model first, then register with new admin
 try:
     admin.site.unregister(models.Project)
 except admin.sites.NotRegistered:

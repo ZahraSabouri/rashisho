@@ -509,13 +509,19 @@ class AdminFinalRepSerializerV2(serializers.ModelSerializer):
 class HomePageProjectSerializer(serializers.ModelSerializer):
     study_fields = StudyFieldSerializer(many=True, read_only=True)
     tags = ProjectTagSerializer(many=True, read_only=True)
+    attractiveness = serializers.SerializerMethodField()
 
     class Meta:
         model = models.Project
         fields = [
             'id', 'title', 'company', 'description', 'image',
-            'tags', 'study_fields', 'is_active'
+            'tags', 'study_fields', 'is_active', 'attractiveness'
         ]
+
+    def get_attractiveness(self, obj):
+        if can_show_attractiveness(obj):
+            return count_project_attractiveness(obj.id)
+        return None
 
     def to_representation(self, instance):
         rep = super().to_representation(instance)
