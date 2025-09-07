@@ -23,7 +23,7 @@ router.register("admin-team-create", team.AdminTeamCreationVS, "admin-team-creat
 router.register("proposal-info", project.ProposalInfoVS, "proposal-info")
 router.register("tags", tag.TagViewSet, "tags")
 router.register("status", project_status.ProjectStatusViewSet, basename="project-status")
-
+router.register("comments", project.ProjectCommentViewSet, basename="project-comments")
 
 urlpatterns = [
     path("my-team/", team.MyTeamAPV.as_view(), name="my-team"),

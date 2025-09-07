@@ -92,7 +92,8 @@ class CommentViewSet(ModelViewSet):
 
     def perform_create(self, serializer):
         """Create comment with proper user assignment"""
-        serializer.save(user=self.request.user)
+        # serializer.save(user=self.request.user)
+        serializer.save() 
 
     def update(self, request, *args, **kwargs):
         """Only allow content updates by owner or admin"""

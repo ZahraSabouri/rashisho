@@ -7,6 +7,7 @@ from django.db.models import Prefetch, ProtectedError, Count
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from django.core.cache import cache
+from django.contrib.contenttypes.models import ContentType
 from rest_framework import status, views
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
@@ -26,6 +27,10 @@ from apps.project.services import allocate_project, generate_project_unique_code
 from apps.api.pagination import Pagination
 from apps.project.models import Project
 from apps.project.api.serializers.project_list import ProjectAnnotatedListSerializer
+
+from apps.comments.api.views import CommentViewSet
+from apps.comments.api.serializers import CommentSerializer
+
 
 from apps.api.schema import TaggedAutoSchema
 
@@ -612,6 +617,68 @@ class ProjectPriorityViewSet(ModelViewSet):
 
     def _user(self):
         return self.request.user
+
+class ProjectCommentViewSet(CommentViewSet):    
+    schema = TaggedAutoSchema(tags=["Project Comments"])
+    serializer_class = CommentSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_permissions(self):
+        if self.action in ["list", "retrieve", "statistics"]:
+            return [AllowAny()]
+        return [IsAuthenticated()]
+
+    def get_queryset(self):
+        qs = super().get_queryset()  # keeps APPROVED-only for non-admin/anon users :contentReference[oaicite:0]{index=0}
+        # Force content type = project.project
+        ct = ContentType.objects.get(app_label="project", model="project")
+        qs = qs.filter(content_type=ct)
+
+        # Filter by project_id if provided (alias for object_id)
+        project_id = self.request.query_params.get("project_id") or self.request.query_params.get("object_id")
+        if project_id:
+            qs = qs.filter(object_id=str(project_id))
+        return qs
+
+    def create(self, request, *args, **kwargs):
+        data = request.data.copy()
+        project_id = data.get("project_id") or request.query_params.get("project_id")
+        if not project_id:
+            # Keep error style consistent with your API
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError({"project_id": ["project_id is required"]})
+
+        # Validate that the project exists & is visible
+        try:
+            Project.objects.get(id=project_id, visible=True)  # Project has a `visible` flag :contentReference[oaicite:1]{index=1}
+        except Project.DoesNotExist:
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError({"project_id": ["پروژه مورد نظر یافت نشد"]})
+
+        # Inject the required fields so the existing CommentSerializer validation passes:
+        # - content_type as "app_label.model"
+        # - object_id as the UUID string (serializer expects strings for UUIDs)
+        data["content_type"] = "project.project"
+        data["object_id"] = str(project_id)
+
+        # Your CommentSerializer requires content_type & object_id for creation :contentReference[oaicite:2]{index=2}
+        # and it resolves them via ContentType internally :contentReference[oaicite:3]{index=3} and object lookup :contentReference[oaicite:4]{index=4}
+        serializer = self.get_serializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
+    @action(detail=False, methods=["get"], url_path=r"by-project/(?P<project_id>[^/.]+)", permission_classes=[AllowAny])
+    def by_project(self, request, project_id=None):
+        """Explicit route to fetch comments of a specific project (public)."""
+        qs = self.get_queryset().filter(object_id=str(project_id))
+        page = self.paginate_queryset(qs)
+        if page is not None:
+            ser = self.get_serializer(page, many=True)
+            return self.get_paginated_response(ser.data)
+        ser = self.get_serializer(qs, many=True)
+        return Response(ser.data, status=status.HTTP_200_OK)
 
 
 class FinalRepresentationViewSet(ModelViewSet):
