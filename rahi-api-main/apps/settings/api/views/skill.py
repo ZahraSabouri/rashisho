@@ -4,15 +4,18 @@ from django_filters import rest_framework as filters
 from apps.api.permissions import SettingsPermission
 from apps.settings.api.serializers.skill import SkillSerializer
 from apps.settings.models import Skill
+from apps.api.schema import TaggedAutoSchema
 
 
 class SkillFilterSet(filters.FilterSet):
+    schema = TaggedAutoSchema(tags=["Settings Skill"])
     title = filters.CharFilter(field_name='title', lookup_expr='icontains')
     class Meta:
         model = Skill
         fields = "__all__"
 
 class SkillViewSet(ModelViewSet):
+    schema = TaggedAutoSchema(tags=["Settings Skill"])
     serializer_class = SkillSerializer
     queryset = Skill.objects.all()
     permission_classes = [SettingsPermission]

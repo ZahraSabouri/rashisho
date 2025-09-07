@@ -42,6 +42,8 @@ from apps.utils.test_tokens import generate_test_token, decode_test_token
 from apps.api.roles import Roles
 from apps.account.models import User
 
+from apps.api.schema import TaggedAutoSchema
+
 
 def _ttl_fields_from_token(token: str) -> dict:
     """Return {'expires_at': <unix ts>, 'ttl_seconds': <int>} without verifying signature."""
@@ -128,6 +130,7 @@ def dev_admin_token_view(request):
 
 
 class MeAV(RetrieveUpdateAPIView):
+    schema = TaggedAutoSchema(tags=["User"])
     serializer_class = serializer.MeSerializer
     queryset = models.User.objects.all()
 
@@ -136,12 +139,14 @@ class MeAV(RetrieveUpdateAPIView):
 
 
 class UserAV(ListAPIView):
+    schema = TaggedAutoSchema(tags=["User"])
     serializer_class = serializer.MeSerializer
     queryset = models.User.objects.all()
     permission_classes = [IsAuthenticated, IsSysgod]
 
 
 class UpdateInfo(APIView):
+    schema = TaggedAutoSchema(tags=["User"])
     serializer_class = serializer.MeSerializer
 
     def get(self, request):
@@ -157,6 +162,7 @@ class UpdateInfo(APIView):
 
 
 class AcceptTerms(APIView):
+    schema = TaggedAutoSchema(tags=["User"])
 
     def patch(self, request, *args, **kwargs):
         self.request.user.is_accespted_terms = True

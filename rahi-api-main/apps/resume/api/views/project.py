@@ -7,9 +7,10 @@ from apps.api.permissions import ResumeStepPermission
 from apps.resume import models
 from apps.resume.api.serializers import project
 from apps.resume.services import ResumeModelViewSet
-
+from apps.api.schema import TaggedAutoSchema
 
 class ResumeProjectViewSet(ResumeModelViewSet):
+    schema = TaggedAutoSchema(tags=["Resume Project"])
     serializer_class = project.ProjectSerializer
     queryset = models.Project.objects.all()
     permission_classes = [IsAuthenticated, ResumeStepPermission]

@@ -26,9 +26,10 @@ from apps.exam.services import (
     update_general_question,
 )
 from apps.resume.models import Resume
-
+from apps.api.schema import TaggedAutoSchema
 
 class GeneralExamVS(ModelViewSet):
+    schema = TaggedAutoSchema(tags=["Exam"])
     queryset = models.GeneralExam.objects.prefetch_related(
         Prefetch("general_question_exam", queryset=models.GeneralQuestion.objects.order_by("number"))
     ).all()
@@ -199,6 +200,7 @@ class GeneralExamVS(ModelViewSet):
 
 
 class GeneralQuestionAnswerVS(GenericViewSet, CreateModelMixin, ListModelMixin):
+    schema = TaggedAutoSchema(tags=["Exam"])
     serializer_class = serializers.GeneralQuestionAnswerSerializer
     permission_classes = [permissions.ResumeFinishedPermission, permissions.StartedExamPermission]
 
@@ -225,6 +227,7 @@ class GeneralQuestionAnswerVS(GenericViewSet, CreateModelMixin, ListModelMixin):
 
 
 class GeneralExamUsersInfo(views.APIView):
+    schema = TaggedAutoSchema(tags=["Exam"])
     permission_classes = [permissions.IsSysgod]
 
     def get(self, request, pk):
@@ -248,6 +251,7 @@ class GeneralExamUsersInfo(views.APIView):
 
 
 class GeneralExamSelectAPV(views.APIView, Pagination):
+    schema = TaggedAutoSchema(tags=["Exam"])
     serializer_class = serializers.GeneralExamSelectSerializer
     permission_classes = [permissions.IsSysgod | permissions.IsSysgod]
 

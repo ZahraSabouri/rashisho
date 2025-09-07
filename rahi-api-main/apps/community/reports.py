@@ -4,8 +4,10 @@ from rest_framework.views import APIView
 from apps.api.permissions import IsSysgod
 from apps.community.models import Community
 
+from apps.api.schema import TaggedAutoSchema
 
 class CommunityMembersReportAPV(APIView):
+    schema = TaggedAutoSchema(tags=["Community"])
     permission_classes = [IsSysgod]
 
     def get(self, request):

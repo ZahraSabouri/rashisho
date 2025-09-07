@@ -6,9 +6,11 @@ from rest_framework.views import APIView
 
 from apps.account.models import User
 from apps.api.permissions import IsSysgod
+from apps.api.schema import TaggedAutoSchema
 
 
 class UsersReportAPV(APIView):
+    schema = TaggedAutoSchema(tags=["User"])
     permission_classes = [IsSysgod]
 
     def get(self, request):

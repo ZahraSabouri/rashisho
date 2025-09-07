@@ -10,8 +10,11 @@ from apps.project.models import Team, TeamRequest
 from apps.project.services import user_team
 from apps.utils.utility import convert_to_jalali
 
+from apps.api.schema import TaggedAutoSchema
+
 
 class ProjectPriorityReportAPV(APIView):
+    schema = TaggedAutoSchema(tags=["Project Reports"])
     permission_classes = [IsSysgod]
 
     def get(self, request):
@@ -106,6 +109,7 @@ class ProjectPriorityReportAPV(APIView):
 
 
 class TeamReportAPV(APIView):
+    schema = TaggedAutoSchema(tags=["Project Reports"])
     permission_classes = [IsSysgod]
 
     def get(self, request):
@@ -215,6 +219,7 @@ class TeamReportAPV(APIView):
 
 
 class FinalRepresentationReportAPV(APIView):
+    schema = TaggedAutoSchema(tags=["Project Reports"])
     permission_classes = [IsSysgod]
 
     def get(self, request):
@@ -297,6 +302,7 @@ class FinalRepresentationReportAPV(APIView):
 
 
 class ScenarioReportAPV(APIView):
+    schema = TaggedAutoSchema(tags=["Project Reports"])
     permission_classes = [IsSysgod]
 
     def get(self, request):
@@ -395,6 +401,7 @@ class ScenarioReportAPV(APIView):
 
 
 class TaskReportAPV(APIView):
+    schema = TaggedAutoSchema(tags=["Project Reports"])
     permission_classes = [IsSysgod]
 
     def get(self, request):
@@ -505,6 +512,7 @@ class TaskReportAPV(APIView):
 
 
 class AllocatedProjectReportAPV(APIView):
+    schema = TaggedAutoSchema(tags=["Project Reports"])
     permission_classes = [IsSysgod]
 
     def get(self, request):

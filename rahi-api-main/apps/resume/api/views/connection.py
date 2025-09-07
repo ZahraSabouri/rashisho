@@ -7,9 +7,11 @@ from apps.api.permissions import ResumeStepPermission
 from apps.resume import models
 from apps.resume.api.serializers import connection
 from apps.resume.services import ResumeModelViewSet
+from apps.api.schema import TaggedAutoSchema
 
 
 class ResumeConnectionViewSet(ResumeModelViewSet):
+    schema = TaggedAutoSchema(tags=["Resume Connection"])
     serializer_class = connection.ConnectionSerializer
     queryset = models.Connection.objects.all()
     permission_classes = [IsAuthenticated, ResumeStepPermission]

@@ -6,10 +6,12 @@ from apps.settings.api.serializers.study_field import StudyFieldSerializer
 from apps.settings.filters.study_field_filters import StudyFieldFilter
 from apps.settings.models import StudyField
 from apps.project.models import Project
+from apps.api.schema import TaggedAutoSchema
 
 
 
 class StudyFieldViewSet(ModelViewSet):
+    schema = TaggedAutoSchema(tags=["Settings Study Field"])
     serializer_class = StudyFieldSerializer
     queryset = StudyField.objects.all()
     permission_classes = [SettingsPermission]

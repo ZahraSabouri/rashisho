@@ -6,8 +6,10 @@ from apps.account.models import User
 from apps.api.permissions import IsSysgod
 from apps.resume.models import Certificate, Connection, Education, Language, Project, Resume, Skill, WorkExperience
 
+from apps.api.schema import TaggedAutoSchema
 
 class ResumeReportAPV(APIView):
+    schema = TaggedAutoSchema(tags=["Resume"])
     permission_classes = [IsSysgod]
 
     def get(self, request):

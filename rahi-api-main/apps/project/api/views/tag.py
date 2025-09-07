@@ -12,17 +12,12 @@ from django_filters.rest_framework import DjangoFilterBackend
 from apps.project import models
 from apps.project.api.serializers import tag as tag_serializers
 from apps.api.permissions import IsAdminOrReadOnlyPermission
-# FIXED: Use the correct pagination class from your project
 from apps.api.pagination import Pagination
 
+from apps.api.schema import TaggedAutoSchema
 
 class TagViewSet(ModelViewSet):
-    """
-    ViewSet for Tag CRUD operations.
-    - Admins can create, update, delete tags
-    - Everyone can read tags
-    - Supports search and filtering
-    """
+    schema = TaggedAutoSchema(tags=["Project Tags"])
     
     queryset = models.Tag.objects.all().order_by('name')
     permission_classes = [IsAdminOrReadOnlyPermission]
@@ -157,11 +152,7 @@ class TagViewSet(ModelViewSet):
 
 
 class ProjectTagManagementView(APIView):
-    """
-    API for managing tags on projects.
-    - GET: retrieve project tags
-    - POST: add/update project tags (admin only)
-    """
+    schema = TaggedAutoSchema(tags=["Project Tags"])
     
     def get_permissions(self):
         """Read operations are public, write operations need admin permission"""
@@ -238,10 +229,7 @@ class ProjectTagManagementView(APIView):
 
 
 class RelatedProjectsView(APIView):
-    """
-    API for getting related projects based on shared tags.
-    Uses caching for better performance.
-    """
+    schema = TaggedAutoSchema(tags=["Project Tags"])
     
     permission_classes = [IsAuthenticated]
     

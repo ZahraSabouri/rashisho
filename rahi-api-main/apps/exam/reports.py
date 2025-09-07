@@ -10,8 +10,12 @@ from rest_framework.views import APIView
 from apps.api.permissions import IsSysgod
 from apps.exam import models, services
 
+from apps.api.schema import TaggedAutoSchema
+
 
 class BelbinReportAPV(APIView):
+    schema = TaggedAutoSchema(tags=["Exam Belbin"])
+
     permission_classes = [IsSysgod]
 
     def get(self, request):
@@ -114,6 +118,7 @@ class BelbinReportAPV(APIView):
 
 
 class GeneralReportAPV(APIView):
+    schema = TaggedAutoSchema(tags=["Exam"])
     permission_classes = [IsSysgod]
 
     def get(self, request):
@@ -224,6 +229,7 @@ class GeneralReportAPV(APIView):
 
 
 class NeoReportAPV(APIView):
+    schema = TaggedAutoSchema(tags=["Exam Neo"])
     permission_classes = [IsSysgod]
 
     def get(self, request):

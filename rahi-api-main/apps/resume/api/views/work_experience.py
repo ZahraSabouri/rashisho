@@ -5,9 +5,11 @@ from apps.api.permissions import ResumeStepPermission
 from apps.resume import models
 from apps.resume.api.serializers import work_experience as work_serializer
 from apps.resume.services import ResumeModelViewSet
+from apps.api.schema import TaggedAutoSchema
 
 
 class ResumeWorkExperience(ResumeModelViewSet):
+    schema = TaggedAutoSchema(tags=["Resume Work Experience"])
     serializer_class = work_serializer.WorkExperienceSerializer
     queryset = models.WorkExperience.objects.all()
     permission_classes = [IsAuthenticated, ResumeStepPermission]

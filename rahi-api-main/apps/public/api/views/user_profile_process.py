@@ -7,8 +7,10 @@ from apps.project.models import FinalRepresentation, ProjectAllocation
 from apps.project.services import is_team_member, user_team
 from apps.resume.models import Resume
 
+from apps.api.schema import TaggedAutoSchema
 
 class UserProfileProcess(APIView):
+    schema = TaggedAutoSchema(tags=["User Profile Process"])
     permission_classes = [IsSysgod | IsUser]
 
     def _user(self):

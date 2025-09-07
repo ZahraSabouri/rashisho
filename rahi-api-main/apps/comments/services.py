@@ -8,8 +8,6 @@ from django.utils import timezone
 from datetime import timedelta
 
 from apps.comments.models import Comment, CommentReaction, CommentModerationLog
-from apps.project.models import Project
-
 
 class CommentService:
     """
@@ -311,64 +309,6 @@ class CommentService:
         )
         
         return {**stats, **user_reactions}
-
-
-class ProjectCommentService:
-    """
-    Service class specifically for project comments.
-    Handles project-specific comment operations and integrations.
-    """
-    
-    @staticmethod
-    def get_project_comments(project_id: int, user=None) -> List[Comment]:
-        """Get comments for a specific project."""
-        return CommentService.get_comments_for_object(
-            'project.project', 
-            project_id, 
-            user,
-            include_pending=user and hasattr(user, 'role') and user.role == 0
-        )
-    
-    @staticmethod
-    def add_project_comment(user, project_id: int, content: str, 
-                        #   parent_id: Optional[int] = None) -> Comment:
-                          parent_id: Optional[Union[str, UUID]] = None) -> Comment:
-        """Add comment to a project."""
-        # Validate project exists and is active
-        # try:
-        #     project = Project.objects.get(id=project_id, visible=True)
-        # except Project.DoesNotExist:
-        #     raise ValueError("پروژه یافت نشد یا غیرفعال است")
-        
-        comment, created = CommentService.create_comment(
-            user, 'project.project', project_id, content, parent_id
-        )
-        
-        return comment
-        # comment, created = CommentService.create_comment(
-        #     user, 'project.project', project_id, content, parent_id
-        # )
-        
-        # return comment
-    
-    @staticmethod
-    def get_project_comment_summary(project_id: int) -> Dict:
-        """Get comment summary for a project."""
-        stats = CommentService.get_comment_statistics('project.project', project_id)
-        
-        # Add project-specific metrics
-        try:
-            project = Project.objects.get(id=project_id)
-            stats['project_title'] = project.title
-            stats['project_visible'] = project.visible
-            
-            # Calculate engagement rate (comments per view - if tracking views)
-            # This would require view tracking implementation
-            
-        except Project.DoesNotExist:
-            pass
-        
-        return stats
 
 
 class CommentNotificationService:

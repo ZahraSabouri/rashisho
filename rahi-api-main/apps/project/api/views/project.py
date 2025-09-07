@@ -26,10 +26,12 @@ from apps.project.services import allocate_project, generate_project_unique_code
 from apps.api.pagination import Pagination
 from apps.project.models import Project
 from apps.project.api.serializers.project_list import ProjectAnnotatedListSerializer
-from apps.project.api.filters.project import ProjectFilterSet 
+
+from apps.api.schema import TaggedAutoSchema
 
 
 class ProjectViewSet(ModelViewSet):
+    schema = TaggedAutoSchema(tags=["Projects"])
     serializer_class = serializers.ProjectSerializer
     queryset = models.Project.objects.all().prefetch_related(
         Prefetch("project_task", queryset=models.Task.objects.filter(is_active=True)), 
@@ -436,6 +438,7 @@ class ProjectViewSet(ModelViewSet):
     #         'homepage_projects'
     #     ])    
 
+
 def perform_destroy(self, instance):
     # keep IDs/handles you might need after delete
     pk = instance.pk
@@ -590,7 +593,9 @@ def perform_destroy(self, instance):
         serializer = self.get_serializer(inactive_projects, many=True)
         return Response(serializer.data)
 
+
 class ProjectPriorityViewSet(ModelViewSet):
+    schema = TaggedAutoSchema(tags=["Projects"])
     serializer_class = serializers.ProjectPrioritySerializer
     queryset = models.ProjectAllocation.objects.all()
     permission_classes = [IsUser | IsSysgod]
@@ -610,6 +615,7 @@ class ProjectPriorityViewSet(ModelViewSet):
 
 
 class FinalRepresentationViewSet(ModelViewSet):
+    schema = TaggedAutoSchema(tags=["Projects"])
     serializer_class = serializers.FinalRepresentationSerializer
     queryset = models.FinalRepresentation.objects.all()
     permission_classes = [IsUser | IsSysgod]
@@ -672,6 +678,7 @@ class FinalRepresentationViewSet(ModelViewSet):
 
 
 class FinalRepInfo(mixins.RetrieveModelMixin, mixins.ListModelMixin, GenericViewSet):
+    schema = TaggedAutoSchema(tags=["Projects"])
     serializer_class = serializers.AdminFinalRepSerializer
     queryset = models.FinalRepresentation.objects.all()
     permission_classes = [IsSysgod]
@@ -686,6 +693,7 @@ class FinalRepInfo(mixins.RetrieveModelMixin, mixins.ListModelMixin, GenericView
 
 
 class FinalRepInfoV2(mixins.RetrieveModelMixin, mixins.ListModelMixin, GenericViewSet):
+    schema = TaggedAutoSchema(tags=["Projects"])
     serializer_class = serializers.AdminFinalRepSerializerV2
     queryset = models.UserScenarioTaskFile.objects.filter(derivatives__derivatives_type="F")
     permission_classes = [IsSysgod]
@@ -699,6 +707,7 @@ class FinalRepInfoV2(mixins.RetrieveModelMixin, mixins.ListModelMixin, GenericVi
 
 
 class ProposalInfoVS(mixins.RetrieveModelMixin, mixins.ListModelMixin, GenericViewSet):
+    schema = TaggedAutoSchema(tags=["Projects"])
     serializer_class = serializers.AdminFinalRepSerializerV2
     queryset = models.UserScenarioTaskFile.objects.filter(derivatives__derivatives_type="P")
     permission_classes = [IsSysgod]
@@ -712,6 +721,7 @@ class ProposalInfoVS(mixins.RetrieveModelMixin, mixins.ListModelMixin, GenericVi
 
 
 class ScenarioVS(ModelViewSet):
+    schema = TaggedAutoSchema(tags=["Projects"])
     permission_classes = [IsAuthenticated, IsSysgod | ReadOnly]
     serializer_class = serializers.ScenarioSerializer
     queryset = models.Scenario.objects.all()
@@ -754,6 +764,7 @@ class ScenarioVS(ModelViewSet):
 
 
 class TaskVS(ModelViewSet):
+    schema = TaggedAutoSchema(tags=["Projects"])
     permission_classes = [IsAuthenticated, IsSysgod | ReadOnly]
     serializer_class = serializers.TaskSerializer
     queryset = models.Task.objects.all()
@@ -796,6 +807,7 @@ class TaskVS(ModelViewSet):
 
 
 class ProjectDerivativesVS(ModelViewSet):
+    schema = TaggedAutoSchema(tags=["Projects"])
     permission_classes = [IsAuthenticated, IsSysgod | ReadOnly]
     serializer_class = serializers.ProjectDerivativesSerializer
     queryset = models.ProjectDerivatives.objects.all()
@@ -820,9 +832,9 @@ class ProjectDerivativesVS(ModelViewSet):
 
 
 class HomePageProjectViewSet(mixins.ListModelMixin, GenericViewSet):
-    """Updated homepage projects - only shows active projects"""
+    schema = TaggedAutoSchema(tags=["Projects"])
     serializer_class = serializers.HomePageProjectSerializer
-    queryset = models.Project.objects.filter(visible=True, is_active=True)  # UPDATED
+    queryset = models.Project.objects.filter(visible=True, is_active=True) 
     permission_classes = [AllowAny]
 
     def list(self, request, *args, **kwargs):
@@ -840,6 +852,7 @@ class HomePageProjectViewSet(mixins.ListModelMixin, GenericViewSet):
 
 
 class UserScenarioTaskFileAPV(views.APIView):
+    schema = TaggedAutoSchema(tags=["Projects"])
     permission_classes = [IsUser | IsSysgod]
     serializer_class = serializers.ScenarioTaskSerializer
     queryset = models.UserScenarioTaskFile.objects.all()
@@ -893,6 +906,7 @@ class UserScenarioTaskFileAPV(views.APIView):
 
 
 class UserTaskFileAV(views.APIView):
+    schema = TaggedAutoSchema(tags=["Projects"])
     permission_classes = [IsSysgod]
 
     def get(self, request, *args, **kwargs):
@@ -917,6 +931,7 @@ class UserTaskFileAV(views.APIView):
 
 
 class IsTeamHeadAV(views.APIView):
+    schema = TaggedAutoSchema(tags=["Projects"])
     permission_classes = [IsAuthenticated]
 
     def get(self, request, *args, **kwargs):
@@ -929,6 +944,7 @@ class IsTeamHeadAV(views.APIView):
 
 
 class ProjectTasksListAV(views.APIView):
+    schema = TaggedAutoSchema(tags=["Projects"])
     permission_classes = [IsSysgod]
 
     def get(self, request, *args, **kwargs):

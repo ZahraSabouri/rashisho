@@ -1,5 +1,15 @@
 from drf_spectacular.extensions import OpenApiAuthenticationExtension
+from drf_spectacular.openapi import AutoSchema
 
+class TaggedAutoSchema(AutoSchema):
+    """Allow setting fixed tags via constructor."""
+    def __init__(self, *args, tags=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._fixed_tags = tags or []
+
+    def get_tags(self, *args, **kwargs):
+        base = super().get_tags(*args, **kwargs)
+        return self._fixed_tags or base
 
 class GetUserProfileAuthenticationExtension(OpenApiAuthenticationExtension):
     target_class = "apps.api.authentication.GetUserProfileAuthentication"

@@ -10,12 +10,10 @@ from apps.account.api.serializers.connection import (
     ConnectionSerializer,
 )
 from apps.account.services import ConnectionService
+from apps.api.schema import TaggedAutoSchema
 
 class ConnectionRequestAV(APIView):
-    """
-    Presentation لایه (APIView ~ ASP.NET Controller Action)
-    POST /api/account/connections/request
-    """
+    schema = TaggedAutoSchema(tags=["Connection"])
     permission_classes = [permissions.IsAuthenticated]
 
     def __init__(self, **kwargs):
@@ -37,10 +35,7 @@ class ConnectionRequestAV(APIView):
 
 
 class PendingConnectionsAV(APIView):
-    """
-    GET /api/account/connections/pending?box=received|sent
-    - پیش‌فرض: هر دو سمت (sent/received) برای کاربر لاگین‌شده
-    """
+    schema = TaggedAutoSchema(tags=["Connection"])
     permission_classes = [permissions.IsAuthenticated]
 
     def __init__(self, **kwargs):
@@ -64,11 +59,7 @@ class PendingConnectionsAV(APIView):
 
 
 class ConnectionDecisionAV(APIView):
-    """
-    POST /api/account/connections/{id}/decision
-    body: { "decision": "accepted" | "rejected" }
-    فقط گیرنده می‌تواند تصمیم بگیرد.
-    """
+    schema = TaggedAutoSchema(tags=["Connection"])
     permission_classes = [permissions.IsAuthenticated]
 
 

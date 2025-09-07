@@ -15,14 +15,13 @@ from apps.project.api.serializers import project_status as status_serializers
 from apps.api.permissions import IsAdminOrReadOnlyPermission
 from apps.api.pagination import Pagination
 
+from apps.api.schema import TaggedAutoSchema
+
 logger = logging.getLogger(__name__)
 
 
 class ProjectStatusViewSet(ReadOnlyModelViewSet):
-    """
-    ViewSet for project status information.
-    Provides read-only access to project activation status.
-    """
+    schema = TaggedAutoSchema(tags=["Project Status"])
     serializer_class = status_serializers.ProjectStatusSerializer
     queryset = models.Project.objects.all()
     permission_classes = [IsAuthenticated]
@@ -71,10 +70,7 @@ class ProjectStatusViewSet(ReadOnlyModelViewSet):
 
 
 class ProjectActivationView(APIView):
-    """
-    View for project activation/deactivation operations.
-    Admin-only endpoint for managing project status.
-    """
+    schema = TaggedAutoSchema(tags=["Project Status"])
     permission_classes = [IsAdminOrReadOnlyPermission]
     serializer_class = status_serializers.ProjectActivationSerializer
 
@@ -108,10 +104,7 @@ class ProjectActivationView(APIView):
 
 
 class SingleProjectStatusView(APIView):
-    """
-    View for single project status management.
-    Allows activation/deactivation of individual projects.
-    """
+    schema = TaggedAutoSchema(tags=["Project Status"])
     permission_classes = [IsAdminOrReadOnlyPermission]
 
     def get(self, request, project_id, *args, **kwargs):

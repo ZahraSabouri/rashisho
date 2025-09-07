@@ -2,7 +2,7 @@ from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
 from apps.project import reports
-from apps.project.api.views import project, team, tag, project_status, comments
+from apps.project.api.views import project, team, tag, project_status
 
 app_name = "project"
 
@@ -24,7 +24,6 @@ router.register("proposal-info", project.ProposalInfoVS, "proposal-info")
 router.register("tags", tag.TagViewSet, "tags")
 router.register("status", project_status.ProjectStatusViewSet, basename="project-status")
 
-router.register("comments", comments.ProjectCommentViewSet, "comments")
 
 urlpatterns = [
     path("my-team/", team.MyTeamAPV.as_view(), name="my-team"),
@@ -44,7 +43,5 @@ urlpatterns = [
     path("project/<uuid:project_id>/related/", tag.RelatedProjectsView.as_view(), name="related-projects"),
     path("activation/", project_status.ProjectActivationView.as_view(), name="project-activation"),
     path("status/<uuid:project_id>/", project_status.SingleProjectStatusView.as_view(), name="single-project-status"),
-    path("project/<uuid:project_id>/comments/", comments.ProjectCommentByProjectViewSet.as_view({'get': 'list','post': 'create'}), name="project-comments"),
-    path("project/<uuid:project_id>/comments/<int:pk>/", comments.ProjectCommentByProjectViewSet.as_view({'get': 'retrieve', 'put': 'update', 'patch': 'partial_update', 'delete': 'destroy'}), name="project-comment-detail"),
     path("", include(router.urls)),
 ]

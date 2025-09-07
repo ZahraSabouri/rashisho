@@ -17,8 +17,10 @@ from apps.project.api.serializers import team
 from apps.project.models import Team
 from apps.resume.models import Resume
 
+from apps.api.schema import TaggedAutoSchema
 
 class ProjectParticipantsViewSet(ReadOnlyModelViewSet):
+    schema = TaggedAutoSchema(tags=["Team"])
     serializer_class = team.TeammateInfoSerializer
     permission_classes = [IsUser | IsSysgod]
 
@@ -109,6 +111,7 @@ class ProjectParticipantsViewSet(ReadOnlyModelViewSet):
 
 
 class TeamBuildViewSet(ModelViewSet):
+    schema = TaggedAutoSchema(tags=["Team"])
     serializer_class = team.TeamSerializer
     queryset = models.Team.objects.all()
     permission_classes = [IsUser | IsSysgod]
@@ -135,6 +138,7 @@ class TeamBuildViewSet(ModelViewSet):
 
 
 class MyTeamAPV(APIView):
+    schema = TaggedAutoSchema(tags=["Team"])
     serializer_class = team.TeamSerializer
     permission_classes = [IsUser | IsSysgod]
 
@@ -150,6 +154,7 @@ class MyTeamAPV(APIView):
 class TeamRequestViewSet(
     mixins.RetrieveModelMixin, mixins.UpdateModelMixin, mixins.DestroyModelMixin, mixins.ListModelMixin, GenericViewSet
 ):
+    schema = TaggedAutoSchema(tags=["Team"])
     serializer_class = team.TeamRequestSerializer
     queryset = models.TeamRequest.objects.all()
     permission_classes = [IsUser | IsSysgod]
@@ -216,6 +221,7 @@ class TeamRequestViewSet(
 
 
 class TeamInfoAPV(APIView):
+    schema = TaggedAutoSchema(tags=["Team"])
     permission_classes = [IsSysgod]
 
     def get(self, request, *args, **kwargs):
@@ -256,6 +262,7 @@ class TeamInfoAPV(APIView):
 
 
 class UserInSameProjectAV(APIView):
+    schema = TaggedAutoSchema(tags=["Team"])
     serializer_class = team.UserInfoSerializer
     permission_classes = [IsSysgod]
 
@@ -269,6 +276,7 @@ class UserInSameProjectAV(APIView):
 
 
 class AdminTeamCreationVS(ModelViewSet):
+    schema = TaggedAutoSchema(tags=["Team"])
     queryset = models.Team.objects.all().prefetch_related("requests")
     serializer_class = team.AdminTeamCreateSerializer
     permission_classes = [IsSysgod]

@@ -26,12 +26,10 @@ from apps.comments.api.serializers import (
     CommentExportSerializer
 )
 
+from apps.api.schema import TaggedAutoSchema
 
 class CommentViewSet(ModelViewSet):
-    """
-    ViewSet for managing comments with full CRUD support.
-    Supports filtering by content type, status, user, and parent comment.
-    """
+    schema = TaggedAutoSchema(tags=["Comments"])
     serializer_class = CommentSerializer
     permission_classes = [IsAuthenticated]
     # pagination_class = StandardResultsSetPagination
@@ -388,9 +386,7 @@ class CommentModerationViewSet(
     mixins.RetrieveModelMixin,
     GenericViewSet
 ):
-    """
-    ViewSet for viewing comment moderation logs (admin only).
-    """
+    schema = TaggedAutoSchema(tags=["Comments"])
     serializer_class = CommentModerationSerializer
     permission_classes = [IsSysgod]
     queryset = CommentModerationLog.objects.select_related(

@@ -4,9 +4,10 @@ from apps.api.permissions import IsUser, ResumeStepPermission
 from apps.resume import models
 from apps.resume.api.serializers import education
 from apps.resume.services import ResumeModelViewSet
-
+from apps.api.schema import TaggedAutoSchema
 
 class ResumeEducationViewSet(ResumeModelViewSet):
+    schema = TaggedAutoSchema(tags=["Resume Education"])
     serializer_class = education.EducationSerializer
     queryset = models.Education.objects.all().order_by("grade")
     permission_classes = [IsUser, ResumeStepPermission]

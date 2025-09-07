@@ -17,9 +17,10 @@ from apps.resume import models
 from apps.resume.api.serializers import certificate, connection, language, project
 from apps.resume.api.serializers import resume as resume_serializer
 from apps.resume.services import create_last_step, update_last_step
-
+from apps.api.schema import TaggedAutoSchema
 
 class StartResume(APIView):
+    schema = TaggedAutoSchema(tags=["Resume"])
     permission_classes = [IsAuthenticated]
 
     def post(self, request: HttpRequest):
@@ -33,6 +34,7 @@ class StartResume(APIView):
 
 
 class MyResume(RetrieveAPIView):
+    schema = TaggedAutoSchema(tags=["Resume"])
     permission_classes = [IsAuthenticated]
     serializer_class = resume_serializer.ResumeSerializer
 
@@ -41,6 +43,7 @@ class MyResume(RetrieveAPIView):
 
 
 class ResumeViewSet(ModelViewSet):
+    schema = TaggedAutoSchema(tags=["Resume"])
     serializer_class = resume_serializer.ResumeSerializer
     queryset = models.Resume.objects.all()
     permission_classes = [ResumePermission]
@@ -218,6 +221,7 @@ class ResumeViewSet(ModelViewSet):
 
 
 class ResumeSecondToThirdStep(APIView):
+    schema = TaggedAutoSchema(tags=["Resume"])
     def patch(self, request, *args, **kwargs):
         resume = get_object_or_404(models.Resume, user=self.request.user)
         if resume.steps["3"] == "started":

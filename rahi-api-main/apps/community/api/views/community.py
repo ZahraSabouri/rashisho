@@ -10,8 +10,10 @@ from apps.community.api.serializers import community
 from apps.community.services import generate_random_code
 from apps.utils.utility import paginated_response
 
+from apps.api.schema import TaggedAutoSchema
 
 class CommunityViewSet(viewsets.ModelViewSet):
+    schema = TaggedAutoSchema(tags=["Community"])
     serializer_class = community.CommunitySerializer
     queryset = models.Community.objects.all()
     permission_classes = [CommunityPermission]
