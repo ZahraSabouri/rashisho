@@ -21,6 +21,7 @@ router.register("final-rep-info", project.FinalRepInfoV2, "final-rep-info")
 router.register("home-projects", project.HomePageProjectViewSet, "home-projects")
 router.register("admin-team-create", team.AdminTeamCreationVS, "admin-team-create")
 router.register("proposal-info", project.ProposalInfoVS, "proposal-info")
+router.register("tag-categories", tag.TagCategoryViewSet, "tag-categories")
 router.register("tags", tag.TagViewSet, "tags")
 router.register("status", project_status.ProjectStatusViewSet, basename="project-status")
 router.register("comments", project.ProjectCommentViewSet, basename="project-comments")
@@ -40,7 +41,7 @@ urlpatterns = [
     path("task/list", project.ProjectTasksListAV.as_view(), name="tasks-list"),
     path("user-in-same-project/<uuid:id>/", team.UserInSameProjectAV.as_view(), name="user-in-same-project"),
     # path("project/<uuid:project_id>/tags/", tag.ProjectTagManagementView.as_view(), name="project-tags"),
-     path("<uuid:project_id>/tags/", tag.ProjectTagManagementView.as_view(), name="project_tags_alias"),
+    path("<uuid:project_id>/tags/", tag.ProjectTagManagementView.as_view(), name="project_tags_alias"),
     path("project/<uuid:project_id>/related/", tag.RelatedProjectsView.as_view(), name="related-projects"),
     path("activation/", project_status.ProjectActivationView.as_view(), name="project-activation"),
     path("status/<uuid:project_id>/", project_status.SingleProjectStatusView.as_view(), name="single-project-status"),

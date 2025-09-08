@@ -10,6 +10,12 @@ from apps.project import models
 
 from apps.project.models import ProjectAttractiveness
 
+@admin.register(models.TagCategory)
+class TagCategoryAdmin(admin.ModelAdmin):
+    list_display = ("code", "title", "created_at")
+    search_fields = ("code", "title")
+
+
 @admin.register(ProjectAttractiveness)
 class ProjectAttractivenessAdmin(admin.ModelAdmin):
     list_display = ("id", "project", "user", "created_at")

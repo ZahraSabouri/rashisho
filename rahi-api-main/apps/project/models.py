@@ -12,16 +12,22 @@ from apps.settings.models import StudyField
 
 from django.contrib.contenttypes.fields import GenericRelation
 
+class TagCategory(BaseModel):
+    code = models.SlugField(max_length=50, unique=True, verbose_name="کد")
+    title = models.CharField(max_length=100, verbose_name="عنوان")
+    class Meta(BaseModel.Meta):
+        verbose_name = "دسته‌بندی تگ"
+        verbose_name_plural = "دسته‌بندی‌های تگ"
+        ordering = ["title"]
+    def __str__(self) -> str:
+        return self.title
+    
 class Tag(BaseModel):
-    """
-    Model for project keywords/tags.
-    Allows categorization and discovery of related projects.
-    """
-    class TagCategory(models.TextChoices):
-        SKILL = "SKILL", "مهارت"
-        TECHNOLOGY = "TECH", "فناوری"
-        DOMAIN = "DOMAIN", "حوزه"
-        KEYWORD = "KEYWORD", "کلیدواژه"
+    # class TagCategory(models.TextChoices):
+    #     SKILL = "SKILL", "مهارت"
+    #     TECHNOLOGY = "TECH", "فناوری"
+    #     DOMAIN = "DOMAIN", "حوزه"
+    #     KEYWORD = "KEYWORD", "کلیدواژه"
     
     name = models.CharField(
         max_length=100, 
@@ -30,34 +36,46 @@ class Tag(BaseModel):
         help_text="نام کلیدواژه (مثال: python, django, machine-learning)"
     )
     category = models.CharField(
-        max_length=10,
-        choices=TagCategory.choices,
-        default=TagCategory.KEYWORD,
+        max_length=50,  # was 10; widen so no truncation with dynamic codes
+        verbose_name="کد دسته‌بندی (سازگاری قدیمی)",
+        help_text="به صورت خودکار از category_ref پر می‌شود."
+    )
+
+    category_ref = models.ForeignKey(
+        "TagCategory",
+        related_name="tags",
+        on_delete=models.PROTECT,
+        null=False,  # was nullable; we enforce it now
+        blank=False,
         verbose_name="دسته‌بندی",
-        help_text="نوع تگ: مهارت، فناوری، حوزه یا کلیدواژه عمومی"
+        help_text="ارجاع به دسته‌بندی دینامیک"
     )
-    description = models.TextField(
-        blank=True, 
-        null=True, 
-        verbose_name="توضیحات",
-        help_text="توضیح مختصری درباره این کلیدواژه"
-    )
-    
+
+    description = models.TextField(blank=True, null=True, verbose_name="توضیحات")
+
+
     class Meta(BaseModel.Meta):
         verbose_name = "کلیدواژه"
         verbose_name_plural = "کلیدواژه ها"
         ordering = ['category', 'name']
     
     def __str__(self):
-        return f"{self.name} ({self.get_category_display()})"
-    
+        label = self.category_ref.title if self.category_ref_id else self.get_category_display()
+        return f"{self.name} ({label})"
+
     def clean(self):
-        """Clean and validate tag name"""
         if self.name:
             self.name = self.name.strip().lower()
             if len(self.name) < 2:
                 raise ValidationError("نام تگ باید حداقل 2 کاراکتر باشد")
 
+    def save(self, *args, **kwargs):
+        if self.category_ref_id:
+            self.category = self.category_ref.code
+        super().save(*args, **kwargs)
+
+    def get_category_display(self):
+        return self.category_ref.title if self.category_ref_id else (self.category or "")
 
 def project_priority() -> dict:
     return {
@@ -145,6 +163,7 @@ class ProjectSelection(BaseModel):
     
     def __str__(self):
         return f"{self.user.full_name} - {self.project.title} (اولویت {self.priority})"
+
 
 class ProjectAttractiveness(BaseModel):
     """

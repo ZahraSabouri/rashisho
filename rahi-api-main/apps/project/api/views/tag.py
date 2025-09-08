@@ -26,7 +26,7 @@ class TagViewSet(ModelViewSet):
     search_fields = ['name', 'description']
     ordering_fields = ['name', 'created_at']
     ordering = ['name']
-    filterset_fields = ['category']
+    filterset_fields = ["category", "category_ref"]
     
     def get_serializer_class(self):
         if self.action == 'create':
@@ -148,23 +148,38 @@ class TagViewSet(ModelViewSet):
         serializer = self.get_serializer(unused_tags, many=True)
         return Response(serializer.data)
 
-    @action(detail=True, methods=['patch'], url_path='set-category')
+    @action(detail=True, methods=["patch"], url_path="set-category")
     def set_category(self, request, pk=None):
-        """
-        Minimal “category-only” patch.
-        Admin-only (permission class already enforced on the ViewSet).
-        """
         tag = self.get_object()
-        category = request.data.get('category')
-        if category is None:
-            return Response({'error': 'category is required'}, status=status.HTTP_400_BAD_REQUEST)
+        cat_id = request.data.get("category_id")
+        raw = (request.data.get("category") or "").strip()
 
-        # Let DRF/model validate the choice
-        tag.category = category
-        tag.save(update_fields=['category'])
+        if not cat_id and not raw:
+            return Response({"error": "category_id or category is required"}, status=status.HTTP_400_BAD_REQUEST)
 
-        cache.delete('popular_tags')  # keep caches honest
-        return Response({'message': 'category updated', 'tag': tag_serializers.TagSerializer(tag).data})
+        if cat_id:
+            category = models.TagCategory.objects.get(id=cat_id)
+        else:
+            category = (models.TagCategory.objects.filter(code__iexact=raw).first()
+                        or models.TagCategory.objects.filter(title__iexact=raw).first())
+            if not category:
+                category = models.TagCategory.objects.create(code=slugify(raw), title=raw)
+
+        tag.category_ref = category
+        tag.category = category.code  # keep legacy field in sync
+        tag.save(update_fields=["category_ref", "category"])
+
+        cache.delete("popular_tags")
+        return Response({"message": "category updated", "tag": tag_serializers.TagSerializer(tag).data},
+                        status=status.HTTP_200_OK)
+
+
+class TagCategoryViewSet(ModelViewSet):
+    schema = TaggedAutoSchema(tags=["Project Tags"])
+    queryset = models.TagCategory.objects.all().order_by("title")
+    serializer_class = tag_serializers.TagCategorySerializer
+    permission_classes = [IsAdminOrReadOnlyPermission]
+
 
 class ProjectTagManagementView(APIView):
     schema = TaggedAutoSchema(tags=["Project Tags"])
