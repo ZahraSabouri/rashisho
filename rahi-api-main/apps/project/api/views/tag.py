@@ -153,6 +153,12 @@ class TagViewSet(ModelViewSet):
         tag = self.get_object()
         cat_id = request.data.get("category_id")
         raw = (request.data.get("category") or "").strip()
+        max_len = models.Tag._meta.get_field("category").max_length
+        if len(category.code or "") > max_len:
+            return Response(
+                {"error": f"Category code too long for Tag.category({max_len})"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         if not cat_id and not raw:
             return Response({"error": "category_id or category is required"}, status=status.HTTP_400_BAD_REQUEST)

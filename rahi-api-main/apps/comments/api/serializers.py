@@ -263,9 +263,14 @@ class CommentModerationSerializer(serializers.ModelSerializer):
     comment = CommentListSerializer(read_only=True)
     moderator = UserBasicSerializer(read_only=True)
     
+
     class Meta:
         model = CommentModerationLog
-        fields = ['id', 'comment', 'moderator', 'action', 'reason', 'created_at']
+        fields = [
+            'id', 'comment', 'moderator', 'action',
+            'previous_status', 'new_status',
+            'reason', 'created_at'
+        ]
         read_only_fields = ['id', 'comment', 'moderator', 'created_at']
 
 

@@ -14,11 +14,22 @@ class TagCategorySerializer(serializers.ModelSerializer):
 class TagSerializer(serializers.ModelSerializer):
     project_count = serializers.SerializerMethodField()
     category_display = serializers.CharField(source='get_category_display', read_only=True)
-    category_obj = TagCategorySerializer(source="category_ref", read_only=True)
+    # category_obj = TagCategorySerializer(source="category_ref", read_only=True)
+    category_id = serializers.UUIDField(required=False, allow_null=True, write_only=True)
+    category = serializers.CharField(required=False, allow_blank=True)
+
 
     class Meta:
         model = models.Tag
-        exclude = ["deleted", "deleted_at", "created_at", "updated_at"]
+        fields = [
+            "id", "name", "description",
+            "category",         # legacy short code mirror (<=10)
+            "category_id",      # write-only convenience
+            "category_ref",     # read-only FK (if you expose it)
+            "category_display",
+            "project_count"
+        ]
+        # exclude = ["deleted", "deleted_at", "created_at", "updated_at"]
         read_only_fields = ['id', 'created_at', 'updated_at']
     
     def get_project_count(self, obj):
@@ -48,6 +59,49 @@ class TagSerializer(serializers.ModelSerializer):
         
         return value
 
+    def _resolve_category(self, attrs):
+        cat = None
+        cat_id = attrs.pop("category_id", None)
+        cat_str = attrs.get("category")
+
+        if cat_id:
+            try:
+                cat = models.TagCategory.objects.get(id=cat_id)
+            except models.TagCategory.DoesNotExist:
+                raise serializers.ValidationError({"category_id": "Invalid category_id."})
+        elif cat_str:
+            cat = (
+                models.TagCategory.objects.filter(code__iexact=cat_str).first()
+                or models.TagCategory.objects.filter(title__iexact=cat_str).first()
+            )
+            if not cat:
+                raise serializers.ValidationError({"category": "No TagCategory matches this code/title."})
+
+        if cat:
+            code = (cat.code or "").strip()
+            if len(code) > 10:
+                raise serializers.ValidationError(
+                    {"category": "Category code is longer than 10 chars; cannot mirror into Tag.category(10)."}
+                )
+            return cat, code
+        return None, attrs.get("category", "")
+
+    def create(self, validated_data):
+        cat, code = self._resolve_category(validated_data)
+        if cat:
+            validated_data["category_ref"] = cat
+            validated_data["category"] = code  # mirror short code, not UUID
+        return models.Tag.objects.create(**validated_data)
+
+    def update(self, instance, validated_data):
+        cat, code = self._resolve_category(validated_data)
+        for k, v in validated_data.items():
+            setattr(instance, k, v)
+        if cat:
+            instance.category_ref = cat
+            instance.category = code
+        instance.save()
+        return instance
 
 class TagCreateSerializer(serializers.ModelSerializer):
     category = serializers.CharField(required=False)        
@@ -83,11 +137,17 @@ class TagCreateSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         cat = self._resolve_category(validated_data)
+        max_len = models.Tag._meta.get_field("category").max_length  # e.g., 10 in DB now
+        code = (cat.code or "")
+        if len(code) > max_len:
+            raise serializers.ValidationError(
+                {"category": f"Category code '{code}' exceeds Tag.category({max_len})."}
+            )
         return models.Tag.objects.create(
             name=validated_data["name"].strip().lower(),
             description=(validated_data.get("description") or ""),
             category_ref=cat,
-            category=cat.code,
+            category=code,
         )
 
 

@@ -189,36 +189,33 @@ class CommentViewSet(ModelViewSet):
 
     @action(detail=True, methods=['post'], permission_classes=[IsSysgod])
     def approve(self, request, pk=None):
-        """Approve comment (admin only)"""
         comment = self.get_object()
+        old_status = comment.status
         reason = request.data.get('reason', '')
-        
+
         if comment.status == 'APPROVED':
             return Response(
                 {'error': 'این نظر قبلاً تایید شده است'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
+
         comment.approve(request.user)
-        
-        # Log the action
+
         CommentModerationLog.objects.create(
             comment=comment,
             moderator=request.user,
             action='APPROVED',
-            reason=reason
+            reason=reason,
+            previous_status=old_status,
+            new_status=comment.status,
         )
-        
-        serializer = self.get_serializer(comment)
-        return Response({
-            'message': 'نظر تایید شد',
-            'comment': serializer.data
-        }, status=status.HTTP_200_OK)
+
+        return Response({'detail': 'نظر تایید شد.'}, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['post'], permission_classes=[IsSysgod])
     def reject(self, request, pk=None):
-        """Reject comment (admin only)"""
         comment = self.get_object()
+        old_status = comment.status
         reason = request.data.get('reason', '')
         
         if comment.status == 'REJECTED':
@@ -234,7 +231,9 @@ class CommentViewSet(ModelViewSet):
             comment=comment,
             moderator=request.user,
             action='REJECTED',
-            reason=reason
+            reason=reason,
+            previous_status=old_status,
+            new_status=comment.status,
         )
         
         serializer = self.get_serializer(comment)
@@ -243,47 +242,59 @@ class CommentViewSet(ModelViewSet):
             'comment': serializer.data
         }, status=status.HTTP_200_OK)
 
+    def destroy(self, request, *args, **kwargs):
+            comment = self.get_object()
+            self.check_object_permissions(request, comment)
+            old_status = comment.status
+            reason = request.data.get('reason', '')
+
+            CommentModerationLog.objects.create(
+                comment=comment,
+                moderator=request.user if request.user.is_authenticated else None,
+                action='DELETED',
+                reason=reason,
+                previous_status=old_status,
+                new_status=old_status,
+            )
+            return super().destroy(request, *args, **kwargs)
+
     @action(detail=False, methods=['post'], permission_classes=[IsSysgod])
     def bulk_action(self, request):
-        """Bulk approve, reject, or delete comments (admin only)"""
-        serializer = BulkCommentActionSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        
-        comment_ids = serializer.validated_data['comment_ids']
-        action_type = serializer.validated_data['action']
-        reason = serializer.validated_data.get('reason', '')
-        
-        comments = Comment.objects.filter(id__in=comment_ids)
-        
+        ser = BulkCommentActionSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        action_type = ser.validated_data['action']          # 'approve' | 'reject' | 'delete'
+        reason = ser.validated_data.get('reason', '')
+        ids = ser.validated_data['comment_ids']
+
+        comments = Comment.objects.filter(id__in=ids)
         with transaction.atomic():
-            success_count = 0
-            
-            for comment in comments:
-                if action_type == 'approve' and comment.status != 'APPROVED':
-                    comment.approve(request.user)
-                    success_count += 1
-                elif action_type == 'reject' and comment.status != 'REJECTED':
-                    comment.reject(request.user)
-                    success_count += 1
-                elif action_type == 'delete':
-                    success_count += 1
-                    
-                # Log the action
+            for c in comments.select_for_update():
+                old = c.status
+                if action_type == 'approve':
+                    c.approve(request.user)
+                    new = c.status
+                    log_action = 'APPROVED'
+                elif action_type == 'reject':
+                    c.reject(request.user, reason=reason)
+                    new = c.status
+                    log_action = 'REJECTED'
+                else:  # delete
+                    new = old
+                    log_action = 'DELETED'
+
                 CommentModerationLog.objects.create(
-                    comment=comment,
+                    comment=c,
                     moderator=request.user,
-                    action=action_type.upper(),
-                    reason=reason
+                    action=log_action,
+                    reason=reason,
+                    previous_status=old,
+                    new_status=new,
                 )
-            
-            # Delete comments if needed (after logging)
+
             if action_type == 'delete':
                 comments.delete()
-        
-        return Response({
-            'message': f'{success_count} نظر با موفقیت {action_type} شدند',
-            'processed_count': success_count
-        }, status=status.HTTP_200_OK)
+
+        return Response({'detail': 'عملیات با موفقیت انجام شد.'})
 
     @action(detail=False, methods=['get'], permission_classes=[IsSysgod])
     def export(self, request):

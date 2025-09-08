@@ -50,17 +50,6 @@ class ProjectViewSet(ModelViewSet):
     ordering_fields = "__all__"
     @action(detail=False, methods=["get"], url_path="annotated", permission_classes=[AllowAny])
     def annotated(self, request):
-        """
-        List projects with precomputed counts.
-
-        Query params:
-          - title: icontains filter (already supported by ProjectFilterSet)
-          - study_fields: comma-separated ids (ProjectFilterSet)
-          - ordering: e.g. '-allocations_count', '-tags_count', '-created_at'
-
-        Returns paginated results using apps.api.pagination.Pagination.
-        """
-        # Base queryset (respect your current visibility rules if any)
         qs = (
         Project.objects.filter(visible=True, is_active=True)
         .prefetch_related("tags", "study_fields")
@@ -72,10 +61,17 @@ class ProjectViewSet(ModelViewSet):
 
         # Get applied filters info
         applied_filters = self._get_applied_filters(request.GET)
-    
-        # Apply ordering
+
         ordering = request.GET.get("ordering") or "-created_at"
         qs = qs.order_by(ordering)
+
+        if request.user.is_authenticated and ordering in ("relatability", "-relatability"):
+            window = list(qs[:500])
+            from apps.project.services import compute_project_relatability
+            scored = [(compute_project_relatability(p, request.user)["score"], p) for p in window]
+            reverse = ordering.startswith("-")
+            scored.sort(key=lambda x: x[0], reverse=reverse)
+            qs = [p for _, p in scored]
 
         # Pagination consistent with your project style
         paginator = Pagination()

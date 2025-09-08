@@ -1,31 +1,82 @@
 from __future__ import annotations
 import datetime
 import re
+from typing import Optional
 
 from django.core.exceptions import ValidationError
 from rest_framework import status
 from rest_framework.response import Response
+from slugify import slugify
 
 from apps.account.models import User
 from apps.project import models
+from apps.resume.models import Resume, Education
+
+def _normalize(s: str) -> str:
+    if not s:
+        return ""
+    return slugify(s, allow_unicode=True).replace("-", "").replace(" ", "").lower()
 
 
-# ---------------- project attractiveness selection phase services
+def get_primary_study_field(user) -> Optional[models.StudyField]:
+    try:
+        resume: Resume = getattr(user, "resume", None)
+        if not resume:
+            return None
+
+        # Prefer explicitly finished latest; then fallback progressively
+        qs = resume.educations.all().order_by("-end_date", "-start_date", "-created_at")
+        edu: Optional[Education] = qs.first()
+        return edu.field if edu else None
+    except Exception:
+        return None
+
+
+def compute_project_relatability(project: models.Project, user) -> dict:
+    sf = get_primary_study_field(user)
+    if not sf:
+        return {"score": 0, "matched_by": "none"}
+
+    # ---- direct study_field overlap
+    direct_match = 1.0 if project.study_fields.filter(id=sf.id).exists() else 0.0
+
+    # ---- tag-category alignment with the study field (by normalized text)
+    sf_key = _normalize(sf.title)
+    tags = list(getattr(project, "tags").all())  # relies on prefetch in views
+    total_tags = len(tags) or 1  # avoid div-by-zero
+    def _hit(tag) -> bool:
+        cat = getattr(tag, "category_ref", None)
+        if not cat:
+            return False
+        # match by category code or title vs study field title
+        return _normalize(cat.code) == sf_key or _normalize(cat.title) == sf_key
+
+    hits = sum(1 for t in tags if _hit(t))
+    category_match_ratio = hits / total_tags
+
+    # ---- weighted score
+    score = round((0.7 * direct_match + 0.3 * category_match_ratio) * 100)
+
+    matched_by = "direct" if direct_match == 1.0 else ("category" if hits > 0 else "none")
+    return {
+        "score": score,
+        "matched_by": matched_by,
+        "debug": {
+            "sf_id": str(sf.id),
+            "sf_title": sf.title,
+            "direct_match": direct_match,
+            "category_hits": hits,
+            "total_tags": total_tags if total_tags != 1 else (0 if len(tags) == 0 else 1),
+        },
+    }
+
 
 def get_project_phase(project):
-    """
-    Get current phase for a specific project.
-    Uses project.current_phase property which handles auto-calculation.
-    """
     if not project:
         return models.ProjectPhase.BEFORE_SELECTION
     return project.current_phase
 
 def is_selection_phase_active(project=None):
-    """
-    Check if selection is active for a project.
-    For backward compatibility, can be called without project.
-    """
     if project:
         return project.current_phase == models.ProjectPhase.SELECTION_ACTIVE
     
@@ -36,14 +87,9 @@ def is_selection_phase_active(project=None):
     ).exists()
 
 def can_show_attractiveness(project=None):
-    """
-    Should attractiveness count be visible for this project?
-    Shows during SELECTION_ACTIVE and SELECTION_FINISHED phases.
-    """
     if project:
         return project.show_attractiveness
     
-    # Global check - show if any project allows it
     return models.Project.objects.filter(
         selection_phase__in=[
             models.ProjectPhase.SELECTION_ACTIVE,
@@ -52,14 +98,9 @@ def can_show_attractiveness(project=None):
     ).exists()
 
 def can_select_projects(project=None):
-    """
-    Can users currently select this project?
-    Only during SELECTION_ACTIVE phase.
-    """
     if project:
         return project.can_be_selected
     
-    # Global check
     return models.Project.objects.filter(
         selection_phase=models.ProjectPhase.SELECTION_ACTIVE,
         is_active=True,
@@ -71,7 +112,6 @@ def count_project_attractiveness(project_id) -> int:
     return ProjectAttractiveness.objects.filter(project_id=project_id).count()
 
 def get_projects_by_phase(phase=None):
-    """Get projects filtered by phase"""
     queryset = models.Project.objects.all()
     if phase:
         queryset = queryset.filter(selection_phase=phase)
@@ -79,10 +119,6 @@ def get_projects_by_phase(phase=None):
 
 def bulk_update_project_phases(project_ids, new_phase, update_dates=False, 
                                start_date=None, end_date=None):
-    """
-    Bulk update project phases.
-    Useful for management commands or admin actions.
-    """
     projects = models.Project.objects.filter(id__in=project_ids)
     
     update_fields = ['selection_phase']
@@ -98,16 +134,11 @@ def bulk_update_project_phases(project_ids, new_phase, update_dates=False,
                 project.selection_end = end_date
                 update_fields.append('selection_end')
     
-    # Bulk update for performance
     models.Project.objects.bulk_update(projects, update_fields)
     
     return projects.count()
 
 def update_expired_project_phases():
-    """
-    Update projects that should auto-transition to FINISHED phase.
-    Call this in a periodic task or management command.
-    """
     now = datetime.timezone.now()
     
     expired_projects = models.Project.objects.filter(
@@ -120,10 +151,6 @@ def update_expired_project_phases():
     return count
 
 def activate_ready_projects():
-    """
-    Activate projects that should transition to SELECTION_ACTIVE phase.
-    Call this in a periodic task or management command.
-    """
     now = datetime.timezone.now()
     
     ready_projects = models.Project.objects.filter(
@@ -135,8 +162,6 @@ def activate_ready_projects():
     
     count = ready_projects.update(selection_phase=models.ProjectPhase.SELECTION_ACTIVE)
     return count
-
-
 
 def generate_project_unique_code():
     now = datetime.datetime.now()
@@ -152,10 +177,7 @@ def generate_project_unique_code():
 
     return f"{year}/{month}/{unique_code:04d}"
 
-
 def is_team_member(user):
-    """If user is a team member, return True, else return False"""
-
     requests = models.TeamRequest.objects.filter(user=user)
     state = False
     for request in requests:
@@ -165,10 +187,7 @@ def is_team_member(user):
             break
     return state
 
-
 def user_team(user):
-    """Here we return the user team name if he/she has team"""
-
     from apps.project.models import TeamRequest
 
     team_request = TeamRequest.objects.filter(user=user, status="A").first()
@@ -177,9 +196,7 @@ def user_team(user):
 
     return None
 
-
 def allocate_project(excel_content):
-    """Allocate projects to users."""
     from apps.project.api.serializers import project as serializers
 
     errors_count = []
@@ -208,7 +225,6 @@ def allocate_project(excel_content):
         )
 
     return Response({"detail": "عملیات موفقیت آمیز بود!"}, status=status.HTTP_200_OK)
-
 
 def validate_persian(value):
     persian_regex = re.compile(r"^[\u0600-\u06FF\u0750-\u077F\s]+$")

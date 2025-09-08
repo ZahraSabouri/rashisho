@@ -250,6 +250,9 @@ class CommentModerationLog(BaseModel):
         verbose_name="دلیل",
         help_text="دلیل انجام این عملیات"
     )
+    previous_status = models.CharField(max_length=10, choices=COMMENT_STATUS_CHOICES)
+    new_status = models.CharField(max_length=10, choices=COMMENT_STATUS_CHOICES)
+
     
     class Meta(BaseModel.Meta):
         verbose_name = "لاگ مدیریت نظر"
