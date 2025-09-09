@@ -134,10 +134,6 @@ class Comment(BaseModel):
 
 
 class CommentReaction(BaseModel):
-    """
-    Model for tracking user reactions (likes/dislikes) on comments.
-    Ensures one reaction per user per comment.
-    """
     comment = models.ForeignKey(
         Comment,
         on_delete=models.CASCADE,
@@ -159,7 +155,7 @@ class CommentReaction(BaseModel):
     class Meta(BaseModel.Meta):
         verbose_name = "واکنش نظر"
         verbose_name_plural = "واکنش‌های نظرات"
-        unique_together = ['comment', 'user']  # One reaction per user per comment
+        unique_together = ['comment', 'user']
         indexes = [
             models.Index(fields=['comment', 'reaction_type']),
         ]
@@ -168,37 +164,29 @@ class CommentReaction(BaseModel):
         return f"{self.user.full_name if hasattr(self.user, 'full_name') else self.user.username} - {self.get_reaction_type_display()} - {self.comment.id}"
     
     def save(self, *args, **kwargs):
-        """Override save to update comment counters"""
-        # Check if this is an update (changing reaction type)
-        is_update = self.pk is not None
-        old_reaction_type = None
-        
-        if is_update:
-            old_reaction_type = CommentReaction.objects.get(pk=self.pk).reaction_type
-        
+        is_update = self.pk is not None and CommentReaction.objects.filter(pk=self.pk).exists()
+        old_reaction_type = (
+            CommentReaction.objects.get(pk=self.pk).reaction_type if is_update else None
+        )
+
         super().save(*args, **kwargs)
-        
-        # Update comment counters
+
         self.update_comment_counters(old_reaction_type)
     
     def delete(self, *args, **kwargs):
-        """Override delete to update comment counters"""
         reaction_type = self.reaction_type
         super().delete(*args, **kwargs)
         self.update_comment_counters(old_reaction_type=reaction_type, is_delete=True)
     
     def update_comment_counters(self, old_reaction_type=None, is_delete=False):
-        """Update like/dislike counters on the related comment"""
         comment = self.comment
         
         if is_delete:
-            # Decrease counter for deleted reaction
             if old_reaction_type == 'LIKE':
                 comment.likes_count = max(0, comment.likes_count - 1)
             elif old_reaction_type == 'DISLIKE':
                 comment.dislikes_count = max(0, comment.dislikes_count - 1)
         elif old_reaction_type and old_reaction_type != self.reaction_type:
-            # Update counters when reaction type changes
             if old_reaction_type == 'LIKE':
                 comment.likes_count = max(0, comment.likes_count - 1)
             elif old_reaction_type == 'DISLIKE':
@@ -219,10 +207,6 @@ class CommentReaction(BaseModel):
 
 
 class CommentModerationLog(BaseModel):
-    """
-    Log model for tracking comment moderation actions by admins.
-    Useful for audit trail and administrative oversight.
-    """
     comment = models.ForeignKey(
         Comment,
         on_delete=models.CASCADE,

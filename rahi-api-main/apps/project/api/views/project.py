@@ -14,6 +14,7 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet, ModelViewSet, mixins
+from drf_spectacular.utils import extend_schema, OpenApiResponse
 
 from apps.account.models import User
 from apps.api.permissions import IsAdminOrReadOnlyPermission, IsSysgod, IsUser, ReadOnly
@@ -28,9 +29,13 @@ from apps.api.pagination import Pagination
 from apps.project.models import Project
 from apps.project.api.serializers.project_list import ProjectAnnotatedListSerializer
 
+from apps.comments.models import CommentReaction
 from apps.comments.api.views import CommentViewSet
 from apps.comments.api.serializers import CommentSerializer
-
+from apps.project.api.serializers.comment import (
+    ProjectCommentSerializer,
+    ProjectCommentReactionInputSerializer,
+)
 
 from apps.api.schema import TaggedAutoSchema
 
@@ -616,25 +621,28 @@ class ProjectPriorityViewSet(ModelViewSet):
 
 class ProjectCommentViewSet(CommentViewSet):    
     schema = TaggedAutoSchema(tags=["Project Comments"])
-    serializer_class = CommentSerializer
+    # serializer_class = CommentSerializer
+    serializer_class = ProjectCommentSerializer
     permission_classes = [IsAuthenticated]
     
     def get_permissions(self):
-        if self.action in ["list", "retrieve", "statistics"]:
+        if self.action in ["list", "retrieve", "statistics", "by_project"]:
             return [AllowAny()]
         return [IsAuthenticated()]
 
     def get_queryset(self):
-        qs = super().get_queryset()  # keeps APPROVED-only for non-admin/anon users :contentReference[oaicite:0]{index=0}
-        # Force content type = project.project
+        qs = super().get_queryset() 
+        
         ct = ContentType.objects.get(app_label="project", model="project")
         qs = qs.filter(content_type=ct)
 
-        # Filter by project_id if provided (alias for object_id)
         project_id = self.request.query_params.get("project_id") or self.request.query_params.get("object_id")
         if project_id:
             qs = qs.filter(object_id=str(project_id))
         return qs
+
+    def get_serializer_class(self):
+        return ProjectCommentSerializer
 
     def create(self, request, *args, **kwargs):
         data = request.data.copy()
@@ -664,6 +672,40 @@ class ProjectCommentViewSet(CommentViewSet):
         self.perform_create(serializer)
         headers = self.get_success_headers(serializer.data)
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
+
+    @extend_schema(
+        request=ProjectCommentReactionInputSerializer,
+        responses={200: OpenApiResponse(response=ProjectCommentSerializer)},
+        description="Add/Update user reaction to a project comment. Send {'reaction_type': 'LIKE' | 'DISLIKE'} in body.",
+        tags=["Project Comments"],
+    )
+    @action(detail=True, methods=["post"])
+    def react(self, request, pk=None):
+        comment = self.get_object()
+        reaction_type = request.data.get("reaction_type") or request.query_params.get("reaction_type")
+
+        if reaction_type not in ["LIKE", "DISLIKE"]:
+            return Response({"error": "نوع واکنش باید LIKE یا DISLIKE باشد"}, status=status.HTTP_400_BAD_REQUEST)
+
+        reaction, created = CommentReaction.objects.get_or_create(
+            comment=comment,
+            user=request.user,
+            defaults={"reaction_type": reaction_type},
+        )
+
+        if not created and reaction.reaction_type != reaction_type:
+            reaction.reaction_type = reaction_type
+            reaction.save()
+            message = "واکنش به‌روزرسانی شد"
+        elif not created and reaction.reaction_type == reaction_type:
+            reaction.delete()
+            return Response({"message": "واکنش حذف شد"}, status=status.HTTP_200_OK)
+        else:
+            message = "واکنش اضافه شد"
+
+        serializer = self.get_serializer(comment)
+        return Response({"message": message, "comment": serializer.data}, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=["get"], url_path=r"by-project/(?P<project_id>[^/.]+)", permission_classes=[AllowAny])
     def by_project(self, request, project_id=None):

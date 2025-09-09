@@ -4,6 +4,7 @@ from apps.account import models
 from apps.common.serializers import CustomSlugRelatedField
 from apps.resume.models import Resume
 from apps.settings.models import City
+from apps.project.models import TeamRequest
 
 
 class MeSerializer(serializers.ModelSerializer):
@@ -58,6 +59,23 @@ class MeSerializer(serializers.ModelSerializer):
         if instance.city:
             city = City.objects.filter(id=instance.city.id).first()
             representation["province"] = [{"value": city.province.id, "text": city.province.title}]
+        qs = (
+            TeamRequest.objects
+            .filter(user=instance, status="A")
+            .select_related("team__project")
+        )
+        representation["teams"] = [
+            {
+                "team": {"id": str(tr.team.id), "title": tr.team.title},
+                "project": (
+                    {"id": str(tr.team.project.id), "title": tr.team.project.title}
+                    if tr.team and tr.team.project else None
+                ),
+                "role": tr.user_role,  # keep existing code values ('C','M') to avoid breaking clients
+            }
+            for tr in qs
+        ]
+
         return representation
 
 
