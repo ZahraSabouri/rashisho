@@ -18,4 +18,10 @@ urlpatterns = [
     # DEV: Token generation endpoints
     path("dev-user-token/", user.dev_user_token_view, name="dev-user-token"),
     path("dev-admin-token/", user.dev_admin_token_view, name="dev-admin-token"),
+    # public profile endpoint (read-only)
+    path("users/<uuid:id>/profile/", user.PublicProfileAV.as_view(), name="user-public-profile"),
+    path("users/public-profiles/", user.PublicProfileListAV.as_view(), name="user-public-profile-list"),
+    path("info-update/", user.UpdateInfo.as_view(), name="info-update"),
+    path("accept-terms/", user.AcceptTerms.as_view(), name="accept-terms"),
+    path("users-report/", reports.UsersReportAPV.as_view(), name="users-report"),
 ]

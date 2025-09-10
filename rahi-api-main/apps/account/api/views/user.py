@@ -1,7 +1,9 @@
 from datetime import datetime, timezone
 import jwt
+import uuid
+from django.db.models import Q
 
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import extend_schema, OpenApiParameter
 
 from apps.utils.test_tokens import generate_test_token, decode_test_token
 from apps.api.roles import Roles
@@ -11,6 +13,7 @@ from django.contrib.auth import get_user_model
 from django.db import transaction
 from rest_framework import status
 from rest_framework.generics import ListAPIView, RetrieveUpdateAPIView
+from rest_framework import permissions
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -24,29 +27,13 @@ from django.conf import settings
 from django.contrib.auth.models import Group
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
-from rest_framework.response import Response
-from apps.utils.test_tokens import generate_test_token, decode_test_token
-from apps.api.roles import Roles
-from apps.account.models import User
-
-from datetime import datetime, timezone
-import jwt
-from django.conf import settings
-from django.contrib.auth.models import Group
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny
-from rest_framework.response import Response
-from drf_spectacular.utils import extend_schema
-
-from apps.utils.test_tokens import generate_test_token, decode_test_token
-from apps.api.roles import Roles
-from apps.account.models import User
 
 from apps.api.schema import TaggedAutoSchema
+from apps.api.pagination import Pagination
+from apps.account.api.serializers.user import PublicProfileSerializer
 
 
 def _ttl_fields_from_token(token: str) -> dict:
-    """Return {'expires_at': <unix ts>, 'ttl_seconds': <int>} without verifying signature."""
     payload = jwt.decode(token, options={"verify_signature": False})
     exp = payload.get("exp")
     now = int(datetime.now(timezone.utc).timestamp())
@@ -143,6 +130,70 @@ class UserAV(ListAPIView):
     serializer_class = serializer.MeSerializer
     queryset = models.User.objects.all()
     permission_classes = [IsAuthenticated, IsSysgod]
+
+
+class PublicProfileAV(APIView):
+    # permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.AllowAny]
+    schema = TaggedAutoSchema(tags=["User"])
+
+    @extend_schema(
+        # summary="Get public profile (by UUID)",
+        parameters=[OpenApiParameter(name="id", type=str, location=OpenApiParameter.PATH, description="User UUID")],
+        responses={200: PublicProfileSerializer},
+        tags=["User"]
+    )
+    def get(self, request, id):
+        user = User.objects.filter(id=id).first()
+        if not user:
+            return Response({"detail": "کاربر یافت نشد."}, status=status.HTTP_404_NOT_FOUND)
+        data = PublicProfileSerializer(user, context={"request": request}).data
+        return Response(data, status=status.HTTP_200_OK)
+
+
+class PublicProfileListAV(ListAPIView):
+    # permission_classes = [permissions.IsAuthenticated, IsSysgod]
+    permission_classes = [permissions.AllowAny]
+    schema = TaggedAutoSchema(tags=["User"])
+    serializer_class = PublicProfileSerializer
+    pagination_class = Pagination
+
+    @extend_schema(
+        summary="List public profiles (admin)",
+        parameters=[
+            OpenApiParameter(
+                name="ids", type=str, description="Comma-separated user UUIDs to filter. Optional."
+            ),
+            OpenApiParameter(
+                name="q", type=str, description="Search by first/last name or username. Optional."
+            ),
+            OpenApiParameter(name="page", type=int, required=False, description="Page number"),
+            OpenApiParameter(name="page_size", type=int, required=False, description="Items per page"),
+        ],
+        responses={200: PublicProfileSerializer},
+    )
+    def get_queryset(self):
+        qs = User.objects.all()
+        # Optional: filter by ids
+        ids_param = self.request.query_params.get("ids")
+        if ids_param:
+            try:
+                id_list = [uuid.UUID(x.strip()) for x in ids_param.split(",") if x.strip()]
+                qs = qs.filter(id__in=id_list)
+            except ValueError:
+                # Invalid UUID -> empty queryset
+                return User.objects.none()
+
+        # Optional: very light search (matches existing project style)
+        q = self.request.query_params.get("q")
+        if q:
+            qs = qs.filter(
+                Q(user_info__first_name__icontains=q)
+                | Q(user_info__last_name__icontains=q)
+                | Q(username__icontains=q)
+            )
+
+        return qs.order_by("-created_at")
 
 
 class UpdateInfo(APIView):

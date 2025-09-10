@@ -7,6 +7,7 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny
 from django_filters.rest_framework import DjangoFilterBackend
 
 from apps.project import models
@@ -267,10 +268,10 @@ class ProjectTagManagementView(APIView):
 class RelatedProjectsView(APIView):
     schema = TaggedAutoSchema(tags=["Project Tags"])
     
-    permission_classes = [IsAuthenticated]
+    # permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
     
     def get(self, request, project_id):
-        """Get related projects based on shared tags"""
         try:
             project = models.Project.objects.get(id=project_id, visible=True)
         except models.Project.DoesNotExist:

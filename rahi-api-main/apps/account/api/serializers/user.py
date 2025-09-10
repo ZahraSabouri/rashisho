@@ -6,6 +6,98 @@ from apps.resume.models import Resume
 from apps.settings.models import City
 from apps.project.models import TeamRequest
 
+from django.db.models import Q
+from apps.account.models import Connection
+
+
+class PublicProfileSerializer(serializers.ModelSerializer):
+    full_name = serializers.CharField(read_only=True)
+    avatar = serializers.SerializerMethodField()
+    personal_video = serializers.SerializerMethodField()
+    city = serializers.SerializerMethodField()
+    province = serializers.SerializerMethodField()
+    contact = serializers.SerializerMethodField()
+    connection = serializers.SerializerMethodField()
+
+    class Meta:
+        model = models.User
+        fields = [
+            "id", "full_name", "bio",
+            "avatar", "personal_video",
+            "birth_date", "city", "province",
+            "contact", "connection",
+        ]
+        read_only_fields = fields
+
+    def get_avatar(self, obj):
+        return obj.avatar.url if obj.avatar else None
+
+    def get_personal_video(self, obj):
+        return obj.personal_video.url if obj.personal_video else None
+
+    def get_city(self, obj):
+        return obj.city.title if obj.city else None
+
+    def get_province(self, obj):
+        if not obj.city:
+            return None
+        city = City.objects.filter(id=obj.city_id).select_related("province").first()
+        return {"id": str(city.province.id), "title": city.province.title} if city else None
+
+    def _viewer(self):
+        req = self.context.get("request")
+        return getattr(req, "user", None)
+
+    def _conn_between(self, viewer, target):
+        # Symmetric lookup: pending/accepted/rejected between two users
+        return (
+            Connection.objects
+            .filter(Q(from_user=viewer, to_user=target) | Q(from_user=target, to_user=viewer))
+            .order_by("-created_at")
+            .first()
+        )
+
+    def get_contact(self, obj):
+        viewer = self._viewer()
+        if not viewer or not viewer.is_authenticated:
+            return None
+        # Always see your own contact
+        if viewer.id == obj.id:
+            return {"mobile_number": obj.mobile_number, "telegram_address": obj.telegram_address}
+
+        conn = self._conn_between(viewer, obj)
+        if conn and conn.status == "accepted":
+            # Requirement: once accepted, both sides see each other's phones. :contentReference[oaicite:6]{index=6}
+            return {"mobile_number": obj.mobile_number, "telegram_address": obj.telegram_address}
+        return None
+
+    def get_connection(self, obj):
+        """
+        Returns current relationship between viewer and target, to drive UI:
+        - status: self|none|pending|accepted|rejected
+        - direction: sent|received (only when pending)
+        - can_send_request: bool
+        - id: pending connection id (if any)
+        """
+        viewer = self._viewer()
+        if not viewer or not viewer.is_authenticated:
+            return {"status": "none", "can_send_request": False}
+
+        if viewer.id == obj.id:
+            return {"status": "self", "can_send_request": False}
+
+        conn = self._conn_between(viewer, obj)
+        if not conn:
+            return {"status": "none", "can_send_request": True}
+
+        payload = {"status": conn.status, "can_send_request": False}
+        if conn.status == "pending":
+            payload.update({
+                "direction": "sent" if conn.from_user_id == viewer.id else "received",
+                "id": str(conn.id),
+            })
+        return payload
+
 
 class MeSerializer(serializers.ModelSerializer):
     city = CustomSlugRelatedField(slug_field="title", queryset=City.objects.all())
