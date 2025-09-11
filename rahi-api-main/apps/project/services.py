@@ -1,5 +1,6 @@
 from __future__ import annotations
 import datetime
+from django.utils import timezone
 import re
 from typing import Optional
 
@@ -139,8 +140,8 @@ def bulk_update_project_phases(project_ids, new_phase, update_dates=False,
     return projects.count()
 
 def update_expired_project_phases():
-    now = datetime.timezone.now()
-    
+    # now = datetime.timezone.now()
+    now = timezone.now()  
     expired_projects = models.Project.objects.filter(
         auto_phase_transition=True,
         selection_phase=models.ProjectPhase.SELECTION_ACTIVE,
@@ -151,7 +152,8 @@ def update_expired_project_phases():
     return count
 
 def activate_ready_projects():
-    now = datetime.timezone.now()
+    # now = datetime.timezone.now()
+    now = timezone.localtime(timezone.now())  
     
     ready_projects = models.Project.objects.filter(
         auto_phase_transition=True,
@@ -164,7 +166,8 @@ def activate_ready_projects():
     return count
 
 def generate_project_unique_code():
-    now = datetime.datetime.now()
+    # now = datetime.datetime.now()
+    now = timezone.now()
     year = now.year
     month = now.strftime("%m")
 

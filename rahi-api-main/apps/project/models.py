@@ -1,4 +1,6 @@
-from datetime import timezone
+# from datetime import datetime, timezone
+import datetime
+from django.utils import timezone
 from django.conf import settings
 import filetype
 from django.contrib.auth import get_user_model
@@ -251,11 +253,6 @@ class Project(BaseModel):
     
     @property
     def current_phase(self):
-        """
-        Get current phase for this project.
-        Auto-calculates based on dates if auto_phase_transition is True,
-        otherwise uses manual selection_phase.
-        """
         if self.auto_phase_transition and self.selection_start and self.selection_end:
             now = timezone.now()
             if now < self.selection_start:
