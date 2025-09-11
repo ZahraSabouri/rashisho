@@ -7,7 +7,7 @@ from django.db import transaction
 from rest_framework.exceptions import ValidationError, PermissionDenied
 from apps.account.models import Connection
 from apps.account.api.serializers.public_profile import PublicProfileSerializer
-sfrom django.db import models
+from django.db import models
 
 def get_sso_user_info(token):
     try:
