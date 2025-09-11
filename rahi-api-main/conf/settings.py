@@ -43,7 +43,7 @@ INSTALLED_APPS = [
 ]
 
 LOCAL_APPS = [
-    "apps.api",           # ← ADD THIS so AppConfig.ready() runs and registers the extension
+    "apps.api",  # ← ADD THIS so AppConfig.ready() runs and registers the extension
     "apps.account",
     "apps.resume",
     "apps.settings",
@@ -52,6 +52,7 @@ LOCAL_APPS = [
     "apps.project",
     "apps.community",
     "apps.comments",
+    "apps.manager"
 ]
 
 EXTERNAL_APPS = [
@@ -63,7 +64,6 @@ EXTERNAL_APPS = [
 ]
 
 INSTALLED_APPS += LOCAL_APPS + EXTERNAL_APPS
-
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -202,5 +202,4 @@ COMMENTS_SETTINGS = {
     'ENABLE_EMAIL_NOTIFICATIONS': False,  # Future feature
     'MAX_REPLY_DEPTH': 1,  # Only one level of replies
     'PROFANITY_FILTER_ENABLED': False,  # Future feature
-    }
-
+}

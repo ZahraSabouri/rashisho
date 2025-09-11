@@ -1,9 +1,8 @@
-# from datetime import datetime, timezone
-import datetime
 from django.utils import timezone
 from django.conf import settings
 import filetype
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
 from django.core.validators import MaxValueValidator, MinLengthValidator, MinValueValidator
 from django.db import models
 from rest_framework.exceptions import ValidationError
@@ -14,26 +13,30 @@ from apps.settings.models import StudyField
 
 from django.contrib.contenttypes.fields import GenericRelation
 
+
 class TagCategory(BaseModel):
     code = models.SlugField(max_length=50, unique=True, verbose_name="کد")
     title = models.CharField(max_length=100, verbose_name="عنوان")
+
     class Meta(BaseModel.Meta):
         verbose_name = "دسته‌بندی تگ"
         verbose_name_plural = "دسته‌بندی‌های تگ"
         ordering = ["title"]
+
     def __str__(self) -> str:
         return self.title
-    
+
+
 class Tag(BaseModel):
     # class TagCategory(models.TextChoices):
     #     SKILL = "SKILL", "مهارت"
     #     TECHNOLOGY = "TECH", "فناوری"
     #     DOMAIN = "DOMAIN", "حوزه"
     #     KEYWORD = "KEYWORD", "کلیدواژه"
-    
+
     name = models.CharField(
-        max_length=100, 
-        unique=True, 
+        max_length=100,
+        unique=True,
         verbose_name="نام تگ",
         help_text="نام کلیدواژه (مثال: python, django, machine-learning)"
     )
@@ -55,12 +58,11 @@ class Tag(BaseModel):
 
     description = models.TextField(blank=True, null=True, verbose_name="توضیحات")
 
-
     class Meta(BaseModel.Meta):
         verbose_name = "کلیدواژه"
         verbose_name_plural = "کلیدواژه ها"
         ordering = ['category', 'name']
-    
+
     def __str__(self):
         label = self.category_ref.title if self.category_ref_id else self.get_category_display()
         return f"{self.name} ({label})"
@@ -78,6 +80,7 @@ class Tag(BaseModel):
 
     def get_category_display(self):
         return self.category_ref.title if self.category_ref_id else (self.category or "")
+
 
 def project_priority() -> dict:
     return {
@@ -129,7 +132,7 @@ def validate_user_task_file_type(value):
 
 class ProjectPhase(models.TextChoices):
     BEFORE_SELECTION = "BEFORE", "قبل از انتخاب"
-    SELECTION_ACTIVE = "ACTIVE", "در حال انتخاب" 
+    SELECTION_ACTIVE = "ACTIVE", "در حال انتخاب"
     SELECTION_FINISHED = "FINISHED", "پایان انتخاب"
 
 
@@ -139,14 +142,14 @@ class ProjectSelection(BaseModel):
     Replaces complex JSONB queries with simple relational queries.
     """
     user = models.ForeignKey(
-        get_user_model(), 
-        on_delete=models.CASCADE, 
+        get_user_model(),
+        on_delete=models.CASCADE,
         related_name='project_selections',
         verbose_name="کاربر"
     )
     project = models.ForeignKey(
-        'Project', 
-        on_delete=models.CASCADE, 
+        'Project',
+        on_delete=models.CASCADE,
         related_name='selections',
         verbose_name="پروژه"
     )
@@ -154,15 +157,15 @@ class ProjectSelection(BaseModel):
         choices=[(1, '1st'), (2, '2nd'), (3, '3rd'), (4, '4th'), (5, '5th')],
         verbose_name="اولویت"
     )
-    
+
     class Meta(BaseModel.Meta):
         unique_together = [
             ('user', 'priority'),  # User can't select 2 projects for same priority
-            ('user', 'project'),   # User can't select same project twice
+            ('user', 'project'),  # User can't select same project twice
         ]
         verbose_name = "انتخاب پروژه"
         verbose_name_plural = "انتخاب‌های پروژه"
-    
+
     def __str__(self):
         return f"{self.user.full_name} - {self.project.title} (اولویت {self.priority})"
 
@@ -199,11 +202,11 @@ class Project(BaseModel):
     code = models.CharField(max_length=300, unique=True, null=True, verbose_name="کد")
     title = models.CharField(max_length=300, verbose_name="عنوان")
     summary = models.TextField(
-    max_length=200,  # Approximately 2 lines of text
-    blank=True,
-    null=True,
-    verbose_name="خلاصه پروژه",
-    help_text="خلاصه کوتاه و جذاب پروژه در حداکثر دو خط (200 کاراکتر)"
+        max_length=200,  # Approximately 2 lines of text
+        blank=True,
+        null=True,
+        verbose_name="خلاصه پروژه",
+        help_text="خلاصه کوتاه و جذاب پروژه در حداکثر دو خط (200 کاراکتر)"
     )
     image = models.ImageField(upload_to="project/images", verbose_name="تصویر")
     company = models.CharField(max_length=300, verbose_name="شرکت تعریف کننده پروژه")
@@ -217,14 +220,14 @@ class Project(BaseModel):
     # start_date = models.DateField(null=True, blank=True, verbose_name="تاریخ شروع")
     # end_date = models.DateField(null=True, blank=True, verbose_name="تاریخ پایان")
     tags = models.ManyToManyField(
-        Tag, 
-        blank=True, 
-        related_name="projects", 
+        Tag,
+        blank=True,
+        related_name="projects",
         verbose_name="کلیدواژه ها",
         help_text="کلیدواژه‌های مرتبط با این پروژه برای بهتر یافت شدن و پیشنهاد پروژه‌های مرتبط"
     )
     is_active = models.BooleanField(
-        "فعال", 
+        "فعال",
         default=True,
         help_text="وضعیت فعال/غیرفعال پروژه. پروژه‌های غیرفعال قابل انتخاب نیستند اما مشاهده می‌شوند."
     )
@@ -235,12 +238,12 @@ class Project(BaseModel):
         verbose_name="فاز انتخاب"
     )
     selection_start = models.DateTimeField(
-        null=True, 
+        null=True,
         blank=True,
         verbose_name="شروع انتخاب"
     )
     selection_end = models.DateTimeField(
-        null=True, 
+        null=True,
         blank=True,
         verbose_name="پایان انتخاب"
     )
@@ -249,8 +252,14 @@ class Project(BaseModel):
         verbose_name="تغییر خودکار فاز",
         help_text="آیا فاز بر اساس تاریخ شروع و پایان تغییر کند؟"
     )
-    
-    
+    groups = models.ManyToManyField(
+        Group,
+        blank=True,
+        related_name="projects",
+        verbose_name="گروه‌های کاربری مرتبط",
+        help_text="فقط کاربران این گروه‌ها می‌توانند پروژه را ببینند/انتخاب کنند. خالی یعنی همه گروه‌ها.",
+    )
+
     @property
     def current_phase(self):
         if self.auto_phase_transition and self.selection_start and self.selection_end:
@@ -261,20 +270,20 @@ class Project(BaseModel):
                 return ProjectPhase.SELECTION_ACTIVE
             else:
                 return ProjectPhase.SELECTION_FINISHED
-        
+
         # Use manually set phase
         return self.selection_phase
-    
+
     @property
     def can_be_selected(self):
         """Can users select this project right now?"""
         return self.current_phase == ProjectPhase.SELECTION_ACTIVE and self.is_active and self.visible
-    
+
     @property
     def show_attractiveness(self):
         """Should attractiveness count be shown?"""
         return self.current_phase in [ProjectPhase.SELECTION_ACTIVE, ProjectPhase.SELECTION_FINISHED]
-    
+
     @property
     def phase_display(self):
         """Human readable phase status"""
@@ -282,7 +291,7 @@ class Project(BaseModel):
         if self.auto_phase_transition and self.selection_start and self.selection_end:
             return f"{ProjectPhase(phase).label} (خودکار)"
         return ProjectPhase(phase).label
-    
+
     def update_phase_if_needed(self):
         """
         Update the database phase if auto-transition is enabled and phase changed.
@@ -294,7 +303,7 @@ class Project(BaseModel):
                 self.selection_phase = current
                 self.save(update_fields=['selection_phase'])
 
-    @property 
+    @property
     def comments_count(self):
         """تعداد نظرات تایید شده این پروژه"""
         try:
@@ -302,7 +311,7 @@ class Project(BaseModel):
             return get_comment_count('project.project', self.id)
         except ImportError:
             return 0
-    
+
     @property
     def pending_comments_count(self):
         """تعداد نظرات در انتظار تایید این پروژه"""
@@ -311,7 +320,7 @@ class Project(BaseModel):
             return get_comment_count('project.project', self.id, 'PENDING')
         except ImportError:
             return 0
-    
+
     def get_comments(self, status='APPROVED', limit=None):
         """دریافت نظرات این پروژه"""
         try:
@@ -322,11 +331,11 @@ class Project(BaseModel):
             return comments
         except ImportError:
             return []
-    
+
     def get_latest_comments(self, limit=5):
         """دریافت آخرین نظرات این پروژه"""
         return self.get_comments(limit=limit)
-    
+
     def get_comment_statistics(self):
         """دریافت آمار نظرات این پروژه"""
         try:
@@ -341,12 +350,12 @@ class Project(BaseModel):
                 'total_likes': 0,
                 'total_dislikes': 0
             }
-    
+
     @property
     def has_comments(self):
         """آیا این پروژه نظراتی دارد؟"""
         return self.comments_count > 0
-    
+
     @property
     def comment_engagement_rate(self):
         """نرخ مشارکت در نظرات (نظرات به ازای هر بازدید - اگر سیستم view tracking داشته باشیم)"""
@@ -356,10 +365,8 @@ class Project(BaseModel):
         if comments == 0:
             return 0
         # فرض می‌کنیم هر پروژه حداقل 100 بازدید دارد (می‌تواند از سیستم analytics واقعی بیاید)
-        estimated_views = max(100, comments * 10)  
+        estimated_views = max(100, comments * 10)
         return round((comments / estimated_views) * 100, 2)
-
-
 
     class Meta(BaseModel.Meta):
         verbose_name = "پروژه"
@@ -407,7 +414,7 @@ class Project(BaseModel):
         """Find related projects based on shared tags"""
         if not self.tags.exists():
             return self.__class__.objects.none()
-        
+
         return self.__class__.objects.filter(
             tags__in=self.tags.all(),
             visible=True,
@@ -446,12 +453,12 @@ class Project(BaseModel):
     def __str__(self) -> str:
         status_emoji = "✅" if self.is_active else "❌"
         return f"{status_emoji} {self.title}"
-    
+
     def get_related_projects(self, limit=6):
         """Get projects with shared tags"""
         if not self.tags.exists():
             return Project.objects.none()
-        
+
         return Project.objects.filter(
             tags__in=self.tags.all(),
             visible=True
@@ -462,6 +469,7 @@ class Project(BaseModel):
         ).filter(
             shared_tags_count__gt=0
         ).order_by('-shared_tags_count')[:limit]
+
 
 class ProjectAllocation(BaseModel):
     user = models.OneToOneField(

@@ -36,7 +36,7 @@ class ResumePermission(BasePermission):
                 if community == obj.user.community:
                     return True
             if ProjectAllocation.objects.filter(user=request.user).exists():
-                if obj and request.user.project.project == obj.user.project.project:
+                if obj and request.user.project.project == obj.user.user.project.project:
                     return True
 
         return request.user.has_role([Roles.user]) is not None

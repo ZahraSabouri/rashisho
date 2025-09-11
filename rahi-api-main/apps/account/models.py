@@ -78,10 +78,6 @@ class User(BaseModel, AbstractUser, PermissionsMixin):
         return f"{self.user_info.get("first_name")} {self.user_info.get("last_name")}"
 
     @property
-    def is_admin(self):
-        return self.is_superuser and self.is_staff
-
-    @property
     def user_id(self):
         return self.user_info["id"]
 

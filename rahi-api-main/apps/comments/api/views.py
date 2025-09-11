@@ -27,6 +27,8 @@ from apps.comments.api.serializers import (
 )
 
 from apps.api.schema import TaggedAutoSchema
+from apps.manager.permissions import IsSuperUser
+
 
 class CommentViewSet(ModelViewSet):
     schema = TaggedAutoSchema(tags=["Comments"])
@@ -187,7 +189,7 @@ class CommentViewSet(ModelViewSet):
                 status=status.HTTP_404_NOT_FOUND
             )
 
-    @action(detail=True, methods=['post'], permission_classes=[IsSysgod])
+    @action(detail=True, methods=['post'], permission_classes=[IsSuperUser])
     def approve(self, request, pk=None):
         comment = self.get_object()
         old_status = comment.status
@@ -212,7 +214,7 @@ class CommentViewSet(ModelViewSet):
 
         return Response({'detail': 'نظر تایید شد.'}, status=status.HTTP_200_OK)
 
-    @action(detail=True, methods=['post'], permission_classes=[IsSysgod])
+    @action(detail=True, methods=['post'], permission_classes=[IsSuperUser])
     def reject(self, request, pk=None):
         comment = self.get_object()
         old_status = comment.status
@@ -258,7 +260,7 @@ class CommentViewSet(ModelViewSet):
             )
             return super().destroy(request, *args, **kwargs)
 
-    @action(detail=False, methods=['post'], permission_classes=[IsSysgod])
+    @action(detail=False, methods=['post'], permission_classes=[IsSuperUser])
     def bulk_action(self, request):
         ser = BulkCommentActionSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
@@ -296,7 +298,7 @@ class CommentViewSet(ModelViewSet):
 
         return Response({'detail': 'عملیات با موفقیت انجام شد.'})
 
-    @action(detail=False, methods=['get'], permission_classes=[IsSysgod])
+    @action(detail=False, methods=['get'], permission_classes=[IsSuperUser])
     def export(self, request):
         """Export comments to CSV (admin only)"""
         # Get filters from request
@@ -400,7 +402,7 @@ class CommentModerationViewSet(
 ):
     schema = TaggedAutoSchema(tags=["Comments"])
     serializer_class = CommentModerationSerializer
-    permission_classes = [IsSysgod]
+    permission_classes = [IsSuperUser]
     queryset = CommentModerationLog.objects.select_related(
         'comment', 'comment__user', 'moderator'
     ).order_by('-created_at')

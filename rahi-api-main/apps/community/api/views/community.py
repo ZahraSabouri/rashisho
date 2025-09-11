@@ -1,6 +1,7 @@
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from apps.account.models import User
@@ -84,7 +85,8 @@ class CommunityViewSet(viewsets.ModelViewSet):
         methods=["get"],
         detail=False,
         url_path="get-community-files",
-        permission_classes=[IsSysgod | IsUser],
+        # permission_classes=[IsSysgod | IsUser],
+        permission_classes=[IsAuthenticated],
         serializer_class=community.CommunityResourceSerializer,
     )
     def get_community_files(self, request, *args, **kwargs):
@@ -107,7 +109,8 @@ class CommunityViewSet(viewsets.ModelViewSet):
         methods=["get"],
         detail=False,
         url_path="delete-community-files",
-        permission_classes=[IsUser],
+        # permission_classes=[IsUser],
+        permission_classes=[IsAuthenticated],
         serializer_class=community.CommunityResourceSerializer,
     )
     def delete_community_files(self, request, *args, **kwargs):

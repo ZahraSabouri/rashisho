@@ -11,12 +11,13 @@ from apps.api.permissions import IsSysgod
 from apps.exam import models, services
 
 from apps.api.schema import TaggedAutoSchema
+from apps.manager.permissions import IsSuperUser
 
 
 class BelbinReportAPV(APIView):
     schema = TaggedAutoSchema(tags=["Exam Belbin"])
 
-    permission_classes = [IsSysgod]
+    permission_classes = [IsSuperUser]
 
     def get(self, request):
         output = io.BytesIO()
@@ -119,7 +120,7 @@ class BelbinReportAPV(APIView):
 
 class GeneralReportAPV(APIView):
     schema = TaggedAutoSchema(tags=["Exam"])
-    permission_classes = [IsSysgod]
+    permission_classes = [IsSuperUser]
 
     def get(self, request):
         general_exam_id = self.request.query_params["general"]
@@ -230,7 +231,7 @@ class GeneralReportAPV(APIView):
 
 class NeoReportAPV(APIView):
     schema = TaggedAutoSchema(tags=["Exam Neo"])
-    permission_classes = [IsSysgod]
+    permission_classes = [IsSuperUser]
 
     def get(self, request):
         output = io.BytesIO()
