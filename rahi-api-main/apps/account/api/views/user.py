@@ -17,6 +17,8 @@ from rest_framework import permissions
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from django.shortcuts import get_object_or_404
+
 
 from apps.account import models
 from apps.account.api.serializers import user as serializer
@@ -31,6 +33,7 @@ from rest_framework.permissions import AllowAny
 from apps.api.schema import TaggedAutoSchema
 from apps.api.pagination import Pagination
 from apps.account.api.serializers.user import PublicProfileSerializer
+from apps.api.permissions import IsAdminOrReadOnlyPermission
 
 
 def _ttl_fields_from_token(token: str) -> dict:
@@ -143,12 +146,17 @@ class PublicProfileAV(APIView):
         responses={200: PublicProfileSerializer},
         tags=["User"]
     )
+    # def get(self, request, id):
+    #     user = User.objects.filter(id=id).first()
+    #     if not user:
+    #         return Response({"detail": "کاربر یافت نشد."}, status=status.HTTP_404_NOT_FOUND)
+    #     data = PublicProfileSerializer(user, context={"request": request}).data
+    #     return Response(data, status=status.HTTP_200_OK)
+    
     def get(self, request, id):
-        user = User.objects.filter(id=id).first()
-        if not user:
-            return Response({"detail": "کاربر یافت نشد."}, status=status.HTTP_404_NOT_FOUND)
-        data = PublicProfileSerializer(user, context={"request": request}).data
-        return Response(data, status=status.HTTP_200_OK)
+        user = get_object_or_404(User, id=id, is_active=True)
+        ser = PublicProfileSerializer(user, context={"request": request, "include_tests": True})
+        return Response(ser.data, status=status.HTTP_200_OK)
 
 
 class PublicProfileListAV(ListAPIView):
@@ -173,9 +181,8 @@ class PublicProfileListAV(ListAPIView):
         responses={200: PublicProfileSerializer},
     )
     def get_queryset(self):
-        # qs = User.objects.all()
         qs = (
-            models.User.objects.all()
+            models.User.objects.filter(is_active=True)
             .select_related("city__province")
             .prefetch_related(
                 "resume__educations",
@@ -183,27 +190,31 @@ class PublicProfileListAV(ListAPIView):
                 "resume__certificates",
                 "resume__skills",
             )
+            .order_by("-created_at")
         )
-        # Optional: filter by ids
         ids_param = self.request.query_params.get("ids")
         if ids_param:
+            import uuid
             try:
                 id_list = [uuid.UUID(x.strip()) for x in ids_param.split(",") if x.strip()]
                 qs = qs.filter(id__in=id_list)
             except ValueError:
-                # Invalid UUID -> empty queryset
-                return User.objects.none()
+                return models.User.objects.none()
 
-        # Optional: very light search (matches existing project style)
         q = self.request.query_params.get("q")
         if q:
+            from django.db.models import Q
             qs = qs.filter(
                 Q(user_info__first_name__icontains=q)
                 | Q(user_info__last_name__icontains=q)
                 | Q(username__icontains=q)
             )
-
-        return qs.order_by("-created_at")
+        return qs
+    
+    # def get(self, request):
+    #     qs = User.objects.filter(is_active=True).order_by("-date_joined")
+    #     ser = PublicProfileSerializer(qs, many=True, context={"request": request, "include_tests": False})
+    #     return Response(ser.data, status=status.HTTP_200_OK)
 
 
 class UpdateInfo(APIView):

@@ -6,8 +6,8 @@ from dataclasses import dataclass
 from django.db import transaction
 from rest_framework.exceptions import ValidationError, PermissionDenied
 from apps.account.models import Connection
-from apps.account.api.serializers.public_profile import PublicProfileSerializer
 from django.db import models
+from uuid import UUID
 
 def get_sso_user_info(token):
     try:
@@ -25,7 +25,8 @@ def get_sso_user_info(token):
 @dataclass
 class ConnectionService:
     @transaction.atomic
-    def send_request(self, from_user_id: int, to_user_id: int) -> Connection:
+    # def send_request(self, from_user_id: int, to_user_id: int) -> Connection:
+    def send_request(self, from_user_id: UUID, to_user_id: UUID) -> Connection:
         User = get_user_model()
 
         if from_user_id == to_user_id:
@@ -46,7 +47,8 @@ class ConnectionService:
             status="pending",
         )
 
-    def list_pendings(self, user_id: int, box: str | None = None):
+    # def list_pendings(self, user_id: int, box: str | None = None):
+    def list_pendings(self, user_id: UUID, box: str | None = None):
         """
         box: 'received' | 'sent' | None
         - None => هر دو سمت را برمی‌گرداند (sent/received) با status=pending
@@ -61,7 +63,8 @@ class ConnectionService:
         return qs.order_by("-created_at")
 
     @transaction.atomic
-    def decide(self, *, connection_id: int, actor_user_id: int, decision: str) -> Connection:
+    # def decide(self, *, connection_id: int, actor_user_id: int, decision: str) -> Connection:
+    def decide(self, *, connection_id: UUID, actor_user_id: UUID, decision: str) -> Connection:
         """
         decision: 'accepted' | 'rejected'
         فقط گیرنده‌ی درخواست می‌تواند تصمیم بگیرد.

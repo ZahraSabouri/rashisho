@@ -75,7 +75,7 @@ class User(BaseModel, AbstractUser, PermissionsMixin):
 
     @property
     def full_name(self):
-        return f"{self.user_info.get("first_name")} {self.user_info.get("last_name")}"
+        return f'{self.user_info.get("first_name")} {self.user_info.get("last_name")}'
 
     @property
     def user_id(self):
