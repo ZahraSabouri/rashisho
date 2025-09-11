@@ -14,7 +14,7 @@ urlpatterns = [
     path("users-report/", reports.UsersReportAPV.as_view(), name="users-report"),
     path("connections/request", connection.ConnectionRequestAV.as_view(), name="connection-request"),
     path("connections/pending", connection.PendingConnectionsAV.as_view(), name="connection-pending-list"),
-    path("connections/<int:id>/decision", connection.ConnectionDecisionAV.as_view(), name="connection-decision"),
+    path("connections/<uuid:id>/decision", connection.ConnectionDecisionAV.as_view(), name="connection-decision"),
     # DEV: Token generation endpoints
     path("dev-user-token/", user.dev_user_token_view, name="dev-user-token"),
     path("dev-admin-token/", user.dev_admin_token_view, name="dev-admin-token"),

@@ -4,7 +4,7 @@ from apps.account.models import Connection
 
 class ConnectionCreateSerializer(serializers.Serializer):
     """DTO ورودی برای ارسال درخواست"""
-    to_user = serializers.IntegerField(required=True)
+    to_user = serializers.UUIDField(required=True) 
 
 class ConnectionSerializer(serializers.ModelSerializer):
     """DTO خروجی برای نمایش Connection"""

@@ -9,6 +9,13 @@ from apps.project.models import TeamRequest
 from django.db.models import Q
 from apps.account.models import Connection
 
+from django.db.models import Prefetch
+
+from apps.resume.api.serializers.education import EducationSerializer
+from apps.resume.api.serializers.work_experience import WorkExperienceSerializer
+from apps.resume.api.serializers.certificate import CertificateSerializer
+from apps.resume.api.serializers.skill import SkillSerializer
+
 
 class PublicProfileSerializer(serializers.ModelSerializer):
     full_name = serializers.CharField(read_only=True)
@@ -19,6 +26,11 @@ class PublicProfileSerializer(serializers.ModelSerializer):
     contact = serializers.SerializerMethodField()
     connection = serializers.SerializerMethodField()
 
+    educations = serializers.SerializerMethodField()
+    jobs = serializers.SerializerMethodField()
+    certificates = serializers.SerializerMethodField()
+    skills = serializers.SerializerMethodField()
+
     class Meta:
         model = models.User
         fields = [
@@ -26,23 +38,51 @@ class PublicProfileSerializer(serializers.ModelSerializer):
             "avatar", "personal_video",
             "birth_date", "city", "province",
             "contact", "connection",
+            "educations", "jobs", "certificates", "skills",
         ]
         read_only_fields = fields
 
-    def get_avatar(self, obj):
-        return obj.avatar.url if obj.avatar else None
-
-    def get_personal_video(self, obj):
-        return obj.personal_video.url if obj.personal_video else None
-
-    def get_city(self, obj):
-        return obj.city.title if obj.city else None
-
+    def get_avatar(self, obj): return obj.avatar.url if obj.avatar else None
+    def get_personal_video(self, obj): return obj.personal_video.url if obj.personal_video else None
+    def get_city(self, obj): return obj.city.title if obj.city else None
     def get_province(self, obj):
         if not obj.city:
             return None
         city = City.objects.filter(id=obj.city_id).select_related("province").first()
         return {"id": str(city.province.id), "title": city.province.title} if city else None
+
+    # ---- resume helpers ----
+    def _resume_for(self, user):
+        # Users may not have started resume yet.
+        return Resume.objects.filter(user=user).first()
+
+    def get_educations(self, obj):
+        resume = self._resume_for(obj)
+        if not resume:
+            return []
+        qs = resume.educations.all().order_by("-end_date", "-created_at")
+        return EducationSerializer(qs, many=True, context=self.context).data
+
+    def get_jobs(self, obj):
+        resume = self._resume_for(obj)
+        if not resume:
+            return []
+        qs = resume.jobs.all().order_by("-end_date", "-created_at")
+        return WorkExperienceSerializer(qs, many=True, context=self.context).data
+
+    def get_certificates(self, obj):
+        resume = self._resume_for(obj)
+        if not resume:
+            return []
+        qs = resume.certificates.all().order_by("-created_at")
+        return CertificateSerializer(qs, many=True, context=self.context).data
+
+    def get_skills(self, obj):
+        resume = self._resume_for(obj)
+        if not resume:
+            return []
+        qs = resume.skills.all().order_by("-created_at")
+        return SkillSerializer(qs, many=True, context=self.context).data
 
     def _viewer(self):
         req = self.context.get("request")

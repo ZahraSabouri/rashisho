@@ -173,7 +173,17 @@ class PublicProfileListAV(ListAPIView):
         responses={200: PublicProfileSerializer},
     )
     def get_queryset(self):
-        qs = User.objects.all()
+        # qs = User.objects.all()
+        qs = (
+            models.User.objects.all()
+            .select_related("city__province")
+            .prefetch_related(
+                "resume__educations",
+                "resume__jobs",
+                "resume__certificates",
+                "resume__skills",
+            )
+        )
         # Optional: filter by ids
         ids_param = self.request.query_params.get("ids")
         if ids_param:
