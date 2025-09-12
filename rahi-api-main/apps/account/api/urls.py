@@ -24,4 +24,6 @@ urlpatterns = [
     path("info-update/", user.UpdateInfo.as_view(), name="info-update"),
     path("accept-terms/", user.AcceptTerms.as_view(), name="accept-terms"),
     path("users-report/", reports.UsersReportAPV.as_view(), name="users-report"),
+    path("users/<uuid:id>/project-attractions/", user.PublicUserProjectAttractionsAV.as_view(), name="user-project-attractions"),
+    path("me/project-attractions/", user.MeProjectAttractionsAV.as_view(), name="me-project-attractions"),
 ]

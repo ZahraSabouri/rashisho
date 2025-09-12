@@ -2,38 +2,33 @@ from datetime import datetime, timezone
 import jwt
 import uuid
 from django.db.models import Q
+from django.shortcuts import get_object_or_404
+from django.contrib.auth import get_user_model
+from django.db import transaction
+from django.conf import settings
+from django.contrib.auth.models import Group
 
-from drf_spectacular.utils import extend_schema, OpenApiParameter
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiExample
+
+from rest_framework import status, permissions
+from rest_framework.generics import ListAPIView, RetrieveUpdateAPIView
+from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.response import Response
+from rest_framework.views import APIView
+from rest_framework.decorators import api_view, permission_classes
 
 from apps.utils.test_tokens import generate_test_token, decode_test_token
 from apps.api.roles import Roles
-from apps.account.models import User
-
-from django.contrib.auth import get_user_model
-from django.db import transaction
-from rest_framework import status
-from rest_framework.generics import ListAPIView, RetrieveUpdateAPIView
-from rest_framework import permissions
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.response import Response
-from rest_framework.views import APIView
-from django.shortcuts import get_object_or_404
-
-
-from apps.account import models
-from apps.account.api.serializers import user as serializer
-from apps.account.services import get_sso_user_info
 from apps.api.permissions import IsSysgod
-
-from django.conf import settings
-from django.contrib.auth.models import Group
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny
-
 from apps.api.schema import TaggedAutoSchema
 from apps.api.pagination import Pagination
-from apps.account.api.serializers.user import PublicProfileSerializer
-from apps.api.permissions import IsAdminOrReadOnlyPermission
+
+from apps.account.models import User
+from apps.account.services import get_sso_user_info
+from apps.account.api.serializers import user as serializer
+
+from apps.project.models import ProjectAttractiveness
+from apps.project.api.serializers.project import ProjectListSerializer  # reuse (id, title)
 
 
 def _ttl_fields_from_token(token: str) -> dict:
@@ -122,7 +117,7 @@ def dev_admin_token_view(request):
 class MeAV(RetrieveUpdateAPIView):
     schema = TaggedAutoSchema(tags=["User"])
     serializer_class = serializer.MeSerializer
-    queryset = models.User.objects.all()
+    queryset = User.objects.all()
 
     def get_object(self):
         return self.request.user
@@ -131,7 +126,7 @@ class MeAV(RetrieveUpdateAPIView):
 class UserAV(ListAPIView):
     schema = TaggedAutoSchema(tags=["User"])
     serializer_class = serializer.MeSerializer
-    queryset = models.User.objects.all()
+    queryset = User.objects.all()
     permission_classes = [IsAuthenticated, IsSysgod]
 
 
@@ -143,19 +138,19 @@ class PublicProfileAV(APIView):
     @extend_schema(
         # summary="Get public profile (by UUID)",
         parameters=[OpenApiParameter(name="id", type=str, location=OpenApiParameter.PATH, description="User UUID")],
-        responses={200: PublicProfileSerializer},
+        responses={200: serializer.PublicProfileSerializer},
         tags=["User"]
     )
     # def get(self, request, id):
     #     user = User.objects.filter(id=id).first()
     #     if not user:
     #         return Response({"detail": "کاربر یافت نشد."}, status=status.HTTP_404_NOT_FOUND)
-    #     data = PublicProfileSerializer(user, context={"request": request}).data
+    #     data = serializer.PublicProfileSerializer(user, context={"request": request}).data
     #     return Response(data, status=status.HTTP_200_OK)
     
     def get(self, request, id):
         user = get_object_or_404(User, id=id, is_active=True)
-        ser = PublicProfileSerializer(user, context={"request": request, "include_tests": True})
+        ser = serializer.PublicProfileSerializer(user, context={"request": request, "include_tests": True})
         return Response(ser.data, status=status.HTTP_200_OK)
 
 
@@ -163,7 +158,7 @@ class PublicProfileListAV(ListAPIView):
     # permission_classes = [permissions.IsAuthenticated, IsSysgod]
     permission_classes = [permissions.AllowAny]
     schema = TaggedAutoSchema(tags=["User"])
-    serializer_class = PublicProfileSerializer
+    serializer_class = serializer.PublicProfileSerializer
     pagination_class = Pagination
 
     @extend_schema(
@@ -178,11 +173,11 @@ class PublicProfileListAV(ListAPIView):
             OpenApiParameter(name="page", type=int, required=False, description="Page number"),
             OpenApiParameter(name="page_size", type=int, required=False, description="Items per page"),
         ],
-        responses={200: PublicProfileSerializer},
+        responses={200: serializer.PublicProfileSerializer},
     )
     def get_queryset(self):
         qs = (
-            models.User.objects.filter(is_active=True)
+            User.objects.filter(is_active=True)
             .select_related("city__province")
             .prefetch_related(
                 "resume__educations",
@@ -199,7 +194,7 @@ class PublicProfileListAV(ListAPIView):
                 id_list = [uuid.UUID(x.strip()) for x in ids_param.split(",") if x.strip()]
                 qs = qs.filter(id__in=id_list)
             except ValueError:
-                return models.User.objects.none()
+                return User.objects.none()
 
         q = self.request.query_params.get("q")
         if q:
@@ -211,10 +206,66 @@ class PublicProfileListAV(ListAPIView):
             )
         return qs
     
-    # def get(self, request):
-    #     qs = User.objects.filter(is_active=True).order_by("-date_joined")
-    #     ser = PublicProfileSerializer(qs, many=True, context={"request": request, "include_tests": False})
-    #     return Response(ser.data, status=status.HTTP_200_OK)
+
+class PublicUserProjectAttractionsAV(APIView):
+    permission_classes = [AllowAny]
+
+    @extend_schema(
+        tags=["User"],
+        parameters=[
+            OpenApiParameter(
+                name="limit", required=False, type=int, location=OpenApiParameter.QUERY,
+                description="Max number of items (default 5, max 20)"
+            )
+        ],
+        responses={200: ProjectListSerializer(many=True)},
+        examples=[
+            OpenApiExample(
+                "Sample",
+                value=[{"id": "11111111-1111-1111-1111-111111111111", "title": "پروژه نمونه"}]
+            )
+        ],
+    )
+    def get(self, request, id):
+        user = get_object_or_404(User, id=id)
+
+        try:
+            limit = int(request.query_params.get("limit", 5))
+        except ValueError:
+            limit = 5
+        limit = max(1, min(limit, 20))
+
+        rows = (
+            ProjectAttractiveness.objects
+            .filter(user=user)
+            .select_related("project")
+            .order_by("-created_at")[:limit]
+        )
+        projects = [row.project for row in rows]
+
+        data = ProjectListSerializer(projects, many=True, context={"request": request}).data
+        return Response(data)
+
+
+class MeProjectAttractionsAV(APIView):
+    permission_classes = [IsAuthenticated]
+    schema = TaggedAutoSchema(tags=["User"])
+
+    def get(self, request):
+        try:
+            limit = int(request.query_params.get("limit", 5))
+        except ValueError:
+            limit = 5
+
+        qs = (
+            ProjectAttractiveness.objects
+            .filter(user=request.user)
+            .select_related("project")
+            .order_by("-created_at")[:limit]
+        )
+        projects = [pa.project for pa in qs]
+        data = ProjectListSerializer(projects, many=True, context={"request": request}).data
+        return Response({"results": data})
 
 
 class UpdateInfo(APIView):

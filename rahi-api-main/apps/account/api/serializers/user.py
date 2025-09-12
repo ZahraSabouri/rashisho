@@ -142,6 +142,7 @@ class PublicProfileSerializer(serializers.ModelSerializer):
 class MeSerializer(serializers.ModelSerializer):
     city = CustomSlugRelatedField(slug_field="title", queryset=City.objects.all())
     email = serializers.EmailField(required=False, allow_null=True)
+    my_permissions = serializers.SerializerMethodField()
 
     class Meta:
         model = models.User
@@ -164,6 +165,7 @@ class MeSerializer(serializers.ModelSerializer):
             "email",
             "telegram_address",
             "is_accespted_terms",
+            "my_permissions",
         ]
         read_only_fields = ["id", "user_info", "user_id", "resume", "role"]
 
@@ -210,6 +212,12 @@ class MeSerializer(serializers.ModelSerializer):
 
         return representation
 
+    def get_my_permissions(self, instance):
+        return {
+            "groups": [g.name for g in instance.groups.all().order_by("name")],
+            "perms": sorted(list(instance.get_all_permissions())),
+            "is_admin": bool(instance.is_superuser or instance.is_staff or instance.role == 0),
+        }
 
 class UserBriefInfoSerializer(serializers.ModelSerializer):
     class Meta:
