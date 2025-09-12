@@ -3,7 +3,6 @@ from django.db.models import Q
 
 from apps.account import models
 
-
 class UserAdmin(admin.ModelAdmin):
     search_fields = [
         "user_info__first_name",
@@ -25,5 +24,10 @@ class UserAdmin(admin.ModelAdmin):
 
         return queryset, use_distinct
 
+@admin.register(models.PeerFeedback)
+class PeerFeedbackAdmin(admin.ModelAdmin):
+    list_display = ("to_user", "author", "is_public", "created_at")
+    list_filter = ("is_public", "phase",)
+    search_fields = ("text", "to_user__username", "author__username")
 
 admin.site.register(models.User, UserAdmin)

@@ -4,6 +4,8 @@ from django.db import models
 from django_resized import ResizedImageField
 from rest_framework.exceptions import ValidationError
 
+from django.conf import settings
+
 from apps.account.managers import BaseUserManager
 from apps.common.models import BaseModel
 from apps.settings.models import City
@@ -34,6 +36,26 @@ def personal_video_file_type(value):
 
     if mime_type not in allowed_types:
         raise ValidationError("نوع فایل غیرمجاز است.")
+
+User = settings.AUTH_USER_MODEL
+
+class PeerFeedback(BaseModel):
+    to_user = models.ForeignKey(User, on_delete=models.CASCADE,
+                                related_name="received_feedbacks", verbose_name="کاربر مقصد")
+    author = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True,
+                               related_name="given_feedbacks", verbose_name="نویسنده نظر")
+    text = models.TextField("متن نظر", max_length=1000)
+    phase = models.CharField("مرحله/بخش", max_length=64, blank=True)  # optional (e.g., team stage)
+    is_public = models.BooleanField("قابل نمایش", default=True)
+
+    class Meta(BaseModel.Meta):
+        verbose_name = "نظر همتیمی (آیینه‌شو)"
+        verbose_name_plural = "نظرات همتیمی (آیینه‌شو)"
+        ordering = ("-created_at",)
+
+    def __str__(self) -> str:
+        return f"Mirror → {self.to_user} by {self.author or '—'}"
+
 
 
 class User(BaseModel, AbstractUser, PermissionsMixin):

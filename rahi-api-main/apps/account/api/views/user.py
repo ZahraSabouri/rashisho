@@ -23,12 +23,13 @@ from apps.api.permissions import IsSysgod
 from apps.api.schema import TaggedAutoSchema
 from apps.api.pagination import Pagination
 
-from apps.account.models import User
+from apps.account.models import User, PeerFeedback
 from apps.account.services import get_sso_user_info
 from apps.account.api.serializers import user as serializer
 
 from apps.project.models import ProjectAttractiveness
 from apps.project.api.serializers.project import ProjectListSerializer  # reuse (id, title)
+
 
 
 def _ttl_fields_from_token(token: str) -> dict:
@@ -291,3 +292,30 @@ class AcceptTerms(APIView):
         self.request.user.is_accespted_terms = True
         self.request.user.save()
         return Response()
+    
+
+class MirrorFeedbackListAV(ListAPIView):
+    # permission_classes = [permissions.AllowAny]
+    permission_classes = [permissions.IsAuthenticated]
+    schema = TaggedAutoSchema(tags=["User"])
+    serializer_class = serializer.PeerFeedbackPublicSerializer
+    pagination_class = Pagination
+
+    @extend_schema(
+        summary="List peer feedback (Mirror) for a user",
+        parameters=[
+            OpenApiParameter(name="id", type=str, location=OpenApiParameter.PATH, description="User UUID"),
+            OpenApiParameter(name="page", type=int, required=False),
+            OpenApiParameter(name="page_size", type=int, required=False),
+        ],
+        responses={200: serializer.PeerFeedbackPublicSerializer},
+    )
+    def get_queryset(self):
+        # ensure target exists (and is active) to mirror PublicProfile behavior
+        get_object_or_404(User, id=self.kwargs["id"], is_active=True)
+        return (
+            PeerFeedback.objects
+            .filter(to_user_id=self.kwargs["id"], is_public=True)
+            .select_related("author")
+            .order_by("-created_at")
+        )

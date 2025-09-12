@@ -15,6 +15,7 @@ from apps.resume.api.serializers.education import EducationSerializer
 from apps.resume.api.serializers.work_experience import WorkExperienceSerializer
 from apps.resume.api.serializers.certificate import CertificateSerializer
 from apps.resume.api.serializers.skill import SkillSerializer
+from apps.account.models import PeerFeedback
 
 
 class PublicProfileSerializer(serializers.ModelSerializer):
@@ -219,8 +220,32 @@ class MeSerializer(serializers.ModelSerializer):
             "is_admin": bool(instance.is_superuser or instance.is_staff or instance.role == 0),
         }
 
+
 class UserBriefInfoSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.User
         fields = ["user_id", "full_name"]
         read_only_fields = ["user_id", "full_name"]
+
+
+class PeerFeedbackPublicSerializer(serializers.ModelSerializer):
+    author_full_name = serializers.SerializerMethodField()
+    author_avatar = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PeerFeedback
+        fields = ["author_full_name", "author_avatar", "text", "phase", "created_at"]
+
+    def get_author_full_name(self, obj):
+        u = obj.author
+        return getattr(u, "full_name", None) if u else None
+
+    def get_author_avatar(self, obj):
+        u = obj.author
+        request = self.context.get("request")
+        if u and getattr(u, "avatar", None):
+            try:
+                return request.build_absolute_uri(u.avatar.url)
+            except Exception:
+                return None
+        return None
