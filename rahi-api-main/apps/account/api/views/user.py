@@ -8,7 +8,7 @@ from django.db import transaction
 from django.conf import settings
 from django.contrib.auth.models import Group
 
-from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiExample
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiExample, OpenApiResponse
 
 from rest_framework import status, permissions
 from rest_framework.generics import ListAPIView, RetrieveUpdateAPIView
@@ -302,7 +302,8 @@ class MirrorFeedbackListAV(ListAPIView):
     pagination_class = Pagination
 
     @extend_schema(
-        summary="List peer feedback (Mirror) for a user",
+        # summary="List peer feedback (Mirror) for a user",
+        tags=["User"],
         parameters=[
             OpenApiParameter(name="id", type=str, location=OpenApiParameter.PATH, description="User UUID"),
             OpenApiParameter(name="page", type=int, required=False),
@@ -311,7 +312,6 @@ class MirrorFeedbackListAV(ListAPIView):
         responses={200: serializer.PeerFeedbackPublicSerializer},
     )
     def get_queryset(self):
-        # ensure target exists (and is active) to mirror PublicProfile behavior
         get_object_or_404(User, id=self.kwargs["id"], is_active=True)
         return (
             PeerFeedback.objects
@@ -319,3 +319,91 @@ class MirrorFeedbackListAV(ListAPIView):
             .select_related("author")
             .order_by("-created_at")
         )
+
+    @extend_schema(
+        # summary="Create a peer feedback (Mirror) for a user",
+        tags=["User"],
+        request=serializer.PeerFeedbackCreateSerializer,
+        responses={201: OpenApiResponse(response=serializer.PeerFeedbackPublicSerializer)},
+        description="Authenticated users can leave peer feedback on another user's profile. "
+                    "The created item may be hidden later by admin via Django admin.",
+    )
+    def post(self, request, *args, **kwargs):
+        target_id = self.kwargs["id"]
+        target = get_object_or_404(User, id=target_id, is_active=True)
+        if str(request.user.id) == str(target.id):
+            return Response({"detail": "نمی‌توانید برای خودتان نظر ثبت کنید."},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        create_ser = serializer.PeerFeedbackCreateSerializer(data=request.data)
+        create_ser.is_valid(raise_exception=True)
+
+        obj = PeerFeedback.objects.create(
+            to_user=target,
+            author=request.user,
+            **create_ser.validated_data
+        )
+        out = serializer.PeerFeedbackPublicSerializer(obj, context={"request": request}).data
+        return Response(out, status=status.HTTP_201_CREATED)
+    
+
+class MyMirrorFeedbackAV(ListAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+    schema = TaggedAutoSchema(tags=["User"])
+    serializer_class = serializer.PeerFeedbackMineSerializer
+    pagination_class = Pagination
+
+    @extend_schema(
+        # summary="List my authored Mirror feedbacks",
+        tags=["User"],
+        responses={200: serializer.PeerFeedbackMineSerializer},
+    )
+    def get_queryset(self):
+        return (
+            PeerFeedback.objects
+            .filter(author_id=self.request.user.id)
+            .select_related("to_user")
+            .order_by("-created_at")
+        )
+
+class MirrorFeedbackDetailAV(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    schema = TaggedAutoSchema(tags=["User"])
+
+    def _get_obj(self, id: int) -> PeerFeedback:
+        return get_object_or_404(PeerFeedback, id=id)
+
+    def _check_actor(self, request, obj: PeerFeedback):
+        is_admin = bool(getattr(request.user, "role", None) == 0 or request.user.is_staff or request.user.is_superuser)
+        if not (is_admin or obj.author_id == request.user.id):
+            return Response({"detail": "اجازه دسترسی ندارید."}, status=status.HTTP_403_FORBIDDEN)
+
+    @extend_schema(
+        # summary="Edit my Mirror feedback",
+        tags=["User"],
+        request=serializer.PeerFeedbackUpdateSerializer,
+        responses={200: OpenApiResponse(response=serializer.PeerFeedbackMineSerializer)},
+        parameters=[OpenApiParameter(name="id", type=int, location=OpenApiParameter.PATH)],
+    )
+    def patch(self, request, id: int):
+        obj = self._get_obj(id)
+        deny = self._check_actor(request, obj)
+        if deny: return deny
+        ser = serializer.PeerFeedbackUpdateSerializer(obj, data=request.data, partial=True)
+        ser.is_valid(raise_exception=True)
+        ser.save()
+        out = serializer.PeerFeedbackMineSerializer(obj, context={"request": request}).data
+        return Response(out, status=status.HTTP_200_OK)
+
+    @extend_schema(
+        # summary="Delete my Mirror feedback",
+        tags=["User"],
+        parameters=[OpenApiParameter(name="id", type=int, location=OpenApiParameter.PATH)],
+        responses={204: None},
+    )
+    def delete(self, request, id: int):
+        obj = self._get_obj(id)
+        deny = self._check_actor(request, obj)
+        if deny: return deny
+        obj.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)

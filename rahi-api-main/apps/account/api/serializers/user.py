@@ -228,6 +228,17 @@ class UserBriefInfoSerializer(serializers.ModelSerializer):
         read_only_fields = ["user_id", "full_name"]
 
 
+class PeerFeedbackCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PeerFeedback
+        fields = ["text", "phase", "is_public"]  # author & to_user come from request/path
+        extra_kwargs = {
+            "text": {"required": True, "allow_blank": False},
+            "phase": {"required": False, "allow_blank": True},
+            "is_public": {"required": False},
+        }
+
+
 class PeerFeedbackPublicSerializer(serializers.ModelSerializer):
     author_full_name = serializers.SerializerMethodField()
     author_avatar = serializers.SerializerMethodField()
@@ -249,3 +260,22 @@ class PeerFeedbackPublicSerializer(serializers.ModelSerializer):
             except Exception:
                 return None
         return None
+
+
+class PeerFeedbackMineSerializer(serializers.ModelSerializer):
+    to_user = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PeerFeedback
+        fields = ["id", "to_user", "text", "phase", "is_public", "created_at", "updated_at"]
+        read_only_fields = fields
+
+    def get_to_user(self, obj):
+        u: models.User = obj.to_user
+        return {"id": str(u.id), "full_name": getattr(u, "full_name", u.username)}
+
+
+class PeerFeedbackUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PeerFeedback
+        fields = ["text", "phase", "is_public"]

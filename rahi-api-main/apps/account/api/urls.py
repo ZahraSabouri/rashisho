@@ -26,5 +26,8 @@ urlpatterns = [
     path("users-report/", reports.UsersReportAPV.as_view(), name="users-report"),
     path("users/<uuid:id>/project-attractions/", user.PublicUserProjectAttractionsAV.as_view(), name="user-project-attractions"),
     path("me/project-attractions/", user.MeProjectAttractionsAV.as_view(), name="me-project-attractions"),
-    path("users/<uuid:id>/mirror/", user.MirrorFeedbackListAV.as_view(), name="user-mirror"),
+    # path("users/<uuid:id>/mirror/", user.MirrorFeedbackListAV.as_view(), name="user-mirror"),
+    path("users/<uuid:id>/mirror/", user.MirrorFeedbackListAV.as_view(), name="user-mirror-feedbacks"),
+    path("me/mirror/", user.MyMirrorFeedbackAV.as_view(), name="me-mirror-feedbacks"),
+    path("mirror/<int:id>/", user.MirrorFeedbackDetailAV.as_view(), name="mirror-feedback-detail"),   
 ]
