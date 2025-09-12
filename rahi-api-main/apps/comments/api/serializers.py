@@ -113,54 +113,6 @@ class CommentSerializer(serializers.ModelSerializer):
         
         return value.strip()
     
-    def validate(self, attrs):
-        """Validate comment creation data"""
-        request = self.context.get('request')
-        
-        # For creating new comment, we need content_type and object_id
-        if not self.instance:
-            content_type_str = attrs.get('content_type')
-            object_id = attrs.get('object_id')
-            parent_id = attrs.get('parent_id')
-            
-            if not content_type_str or not object_id:
-                raise ValidationError("content_type و object_id الزامی است")
-            
-            # Validate content type
-            try:
-                app_label, model = content_type_str.split('.')
-                content_type = ContentType.objects.get(app_label=app_label, model=model)
-                attrs['content_type_obj'] = content_type
-            except (ValueError, ContentType.DoesNotExist):
-                raise ValidationError("نوع محتوای نامعتبر")
-            
-            # Validate object exists
-            try:
-                target_object = content_type.get_object_for_this_type(id=object_id)
-                attrs['target_object'] = target_object
-            except:
-                raise ValidationError("آبجکت مورد نظر یافت نشد")
-            
-            # Validate parent comment if provided
-            if parent_id:
-                try:
-                    parent_comment = Comment.objects.get(
-                        id=parent_id,
-                        content_type=content_type,
-                        object_id=object_id,
-                        status='APPROVED'
-                    )
-                    attrs['parent_obj'] = parent_comment
-                    
-                    # Prevent deep nesting (max 1 level of replies)
-                    if parent_comment.parent is not None:
-                        raise ValidationError("نمی‌توان به پاسخ‌ها پاسخ داد")
-                        
-                except Comment.DoesNotExist:
-                    raise ValidationError("نظر والد یافت نشد")
-        
-        return attrs
-    
     def get_is_editable(self, obj) -> bool:
         """Check if comment is editable by current user."""
         from apps.comments.utils import is_comment_editable  # local import to avoid cycles

@@ -1,4 +1,3 @@
-# apps/account/api/views/connection.py
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status, permissions
@@ -74,7 +73,7 @@ class ConnectionDecisionAV(APIView):
         operation_id="connection_decision",
         description="تایید یا رد یک درخواست ارتباط (فقط توسط گیرنده).",
     )
-    def post(self, request, id: int):
+    def post(self, request, id):
         ser = ConnectionDecisionSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         conn = self.service.decide(

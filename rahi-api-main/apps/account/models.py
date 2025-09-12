@@ -37,13 +37,12 @@ def personal_video_file_type(value):
     if mime_type not in allowed_types:
         raise ValidationError("نوع فایل غیرمجاز است.")
 
-User = settings.AUTH_USER_MODEL
 
 class PeerFeedback(BaseModel):
-    to_user = models.ForeignKey(User, on_delete=models.CASCADE,
-                                related_name="received_feedbacks", verbose_name="کاربر مقصد")
-    author = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True,
-                               related_name="given_feedbacks", verbose_name="نویسنده نظر")
+    to_user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+                                 related_name="received_feedbacks", verbose_name="کاربر مقصد")
+    author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                related_name="given_feedbacks", verbose_name="نویسنده نظر")
     text = models.TextField("متن نظر", max_length=1000)
     phase = models.CharField("مرحله/بخش", max_length=64, blank=True)  # optional (e.g., team stage)
     is_public = models.BooleanField("قابل نمایش", default=True)
@@ -171,3 +170,25 @@ class Connection(BaseModel):
 
     def __str__(self):
         return f"{self.from_user} → {self.to_user} ({self.status})"
+
+
+class DirectMessage(BaseModel):
+    sender = models.ForeignKey(
+        settings.AUTH_USER_MODEL, related_name="sent_messages", on_delete=models.CASCADE
+    )
+    receiver = models.ForeignKey(
+        settings.AUTH_USER_MODEL, related_name="received_messages", on_delete=models.CASCADE
+    )
+    body = models.TextField()
+    is_read = models.BooleanField(default=False)
+
+    class Meta(BaseModel.Meta):
+        verbose_name = "پیام مستقیم"
+        verbose_name_plural = "پیام‌های مستقیم"
+        indexes = [
+            models.Index(fields=["receiver", "is_read"]),
+            models.Index(fields=["sender", "receiver", "created_at"]),
+        ]
+
+    def __str__(self):
+        return f"{self.sender_id} -> {self.receiver_id}: {self.body[:30]}"

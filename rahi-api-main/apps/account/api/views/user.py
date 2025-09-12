@@ -295,7 +295,13 @@ class AcceptTerms(APIView):
     
 
 class MirrorFeedbackListAV(ListAPIView):
-    # permission_classes = [permissions.AllowAny]
+    # permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.AllowAny]
+
+    def get_permissions(self):
+        if getattr(self.request, "method", "GET").upper() == "POST":
+            return [permissions.IsAuthenticated()]
+        return [permissions.AllowAny()]
     permission_classes = [permissions.IsAuthenticated]
     schema = TaggedAutoSchema(tags=["User"])
     serializer_class = serializer.PeerFeedbackPublicSerializer

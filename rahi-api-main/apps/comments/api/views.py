@@ -113,23 +113,6 @@ class CommentViewSet(ModelViewSet):
         
         return super().update(request, *args, **kwargs)
 
-    def destroy(self, request, *args, **kwargs):
-        """Only admins can delete comments"""
-        if not (hasattr(request.user, 'role') and request.user.role == 0):
-            raise PermissionDenied("شما مجاز به حذف نظرات نیستید")
-        
-        comment = self.get_object()
-        
-        # Log the deletion
-        CommentModerationLog.objects.create(
-            comment=comment,
-            moderator=request.user,
-            action='DELETED',
-            reason=request.data.get('reason', '')
-        )
-        
-        return super().destroy(request, *args, **kwargs)
-
     @action(detail=True, methods=['post'])
     def react(self, request, pk=None):
         """Add or update user reaction to comment"""
@@ -243,22 +226,21 @@ class CommentViewSet(ModelViewSet):
             'message': 'نظر رد شد',
             'comment': serializer.data
         }, status=status.HTTP_200_OK)
-
+    
     def destroy(self, request, *args, **kwargs):
-            comment = self.get_object()
-            self.check_object_permissions(request, comment)
-            old_status = comment.status
-            reason = request.data.get('reason', '')
-
-            CommentModerationLog.objects.create(
-                comment=comment,
-                moderator=request.user if request.user.is_authenticated else None,
-                action='DELETED',
-                reason=reason,
-                previous_status=old_status,
-                new_status=old_status,
-            )
-            return super().destroy(request, *args, **kwargs)
+        """Only admins can delete comments  always log"""
+        if not (hasattr(request.user, "role") and request.user.role == 0):
+            raise PermissionDenied("شما مجاز به حذف نظرات نیستید")
+        comment = self.get_object()
+        CommentModerationLog.objects.create(
+            comment=comment,
+            moderator=request.user,
+            action="DELETED",
+            reason=request.data.get("reason", ""),
+            previous_status=comment.status,
+            new_status=comment.status,
+        )
+        return super().destroy(request, *args, **kwargs)
 
     @action(detail=False, methods=['post'], permission_classes=[IsSuperUser])
     def bulk_action(self, request):
