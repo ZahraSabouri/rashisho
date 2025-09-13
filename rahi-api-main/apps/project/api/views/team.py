@@ -16,6 +16,7 @@ from apps.project import models
 from apps.project.api.serializers import team
 from apps.project.models import Team
 from apps.resume.models import Resume
+from apps.public.models import UserNotification
 
 from apps.api.schema import TaggedAutoSchema
 
@@ -125,6 +126,7 @@ class TeamBuildViewSet(ModelViewSet):
         project = user_allocate.project
         created_team = serializer.save(project=project)
         models.TeamRequest.objects.create(user=self._user(), team=created_team, user_role="C", status="A")
+        
 
     def perform_destroy(self, instance: models.Team):
         request: models.TeamRequest = instance.requests.filter(user=self._user(), team=instance).first()
@@ -197,6 +199,19 @@ class TeamRequestViewSet(
 
         try:
             models.TeamRequest.objects.create(user=user, team_id=team_id, user_role="M", status="W")
+            UserNotification.objects.create(
+                user=user,
+                title="دعوت به تیم",
+                body=f"{self.request.user.full_name} شما را به تیم «{user_team.first().team.title}» دعوت کرد.",
+                kind="TEAM_INVITE",
+                payload={
+                    "team_id": str(team_id),
+                    "team_title": user_team.first().team.title,
+                    "inviter_id": str(self.request.user.id),
+                    "inviter_name": self.request.user.full_name,
+                },
+                url=f"/project/team-info/?team_id={team_id}",
+            )
 
         except Exception:
             raise ValidationError("خطایی در ارسال درخواست هم تیمی رخ داده است!")

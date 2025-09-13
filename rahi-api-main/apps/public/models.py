@@ -1,5 +1,6 @@
 import filetype
 from django.contrib.auth import get_user_model
+from django.conf import settings
 from django.db import models
 from rest_framework.exceptions import ValidationError
 
@@ -161,3 +162,22 @@ class Comment(BaseModel):
 
     def __str__(self):
         return f"{self.user.full_name} | {self.ticket.get_status_display()}"
+
+
+class UserNotification(BaseModel):
+    KINDS = [
+        ("TEAM_INVITE", "دعوت تیم"),
+        ("INFO", "اطلاع‌رسانی"),
+    ]
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="notifications")
+    title = models.CharField(max_length=200)
+    body = models.TextField(blank=True)
+    kind = models.CharField(max_length=32, choices=KINDS, default="INFO")
+    payload = models.JSONField(default=dict, blank=True)  # e.g. {"team_id": "...", "team_title": "..."}
+    url = models.CharField(max_length=300, blank=True)
+    is_read = models.BooleanField(default=False)
+
+    class Meta(BaseModel.Meta):
+        verbose_name = "اعلان کاربر"
+        verbose_name_plural = "اعلانات کاربران"
+        ordering = ("-created_at",)

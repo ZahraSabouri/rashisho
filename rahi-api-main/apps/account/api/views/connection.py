@@ -7,6 +7,7 @@ from apps.account.api.serializers.connection import (
     ConnectionCreateSerializer,
     ConnectionDecisionSerializer,
     ConnectionSerializer,
+    PendingConnectionOutSerializer, 
 )
 from apps.account.services import ConnectionService
 from apps.api.schema import TaggedAutoSchema
@@ -45,7 +46,7 @@ class PendingConnectionsAV(APIView):
         parameters=[
             OpenApiParameter(name="box", required=False, type=str, description="received | sent | (خالی برای هر دو)"),
         ],
-        responses={200: OpenApiResponse(response=ConnectionSerializer)},
+        responses={200: OpenApiResponse(response=PendingConnectionOutSerializer)},
         tags=["Connections"],
         operation_id="connection_list_pendings",
         description="لیست درخواست‌های pending کاربر (دریافتی/ارسالی).",
@@ -53,7 +54,7 @@ class PendingConnectionsAV(APIView):
     def get(self, request):
         box = request.query_params.get("box")
         qs = self.service.list_pendings(user_id=request.user.id, box=box)
-        data = ConnectionSerializer(qs, many=True).data
+        data = PendingConnectionOutSerializer(qs, many=True, context={"request": request}).data
         return Response(data, status=status.HTTP_200_OK)
 
 

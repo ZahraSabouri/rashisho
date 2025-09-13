@@ -18,6 +18,7 @@ app_name = "public"
 router = DefaultRouter()
 
 router.register("notification", notification.NotificationViewSet, basename="notification")
+router.register("user-notifications", notification.UserNotificationViewSet, "user-notifications")
 router.register("common-questions", common_questions.CommonQuestionsViewSet, basename="common-questions")
 router.register("competition-rule", competition_rule.CompetitionRuleViewSet, basename="competition-rule")
 router.register("contact-info", contact_information.ContactInformationViewSet, basename="contact-info")
