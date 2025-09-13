@@ -2,6 +2,7 @@ import filetype
 from django.contrib.auth import get_user_model
 from django.conf import settings
 from django.db import models
+from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
 from apps.common.models import BaseModel
@@ -36,6 +37,7 @@ class Notification(BaseModel):
     title = models.CharField(max_length=255, verbose_name="عنوان")
     description = models.TextField(verbose_name="توضیحات")
     image = models.ImageField(upload_to="notifications/images", verbose_name="تصویر")
+    is_active = models.BooleanField(default=False, verbose_name="فعال؟")
 
     class Meta(BaseModel.Meta):
         verbose_name = "اطلاعیه"
@@ -43,6 +45,26 @@ class Notification(BaseModel):
 
     def __str__(self):
         return self.title
+
+
+class NotificationReceipt(BaseModel):
+    notification = models.ForeignKey(Notification, on_delete=models.CASCADE, related_name="receipts")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="notification_receipts")
+    acknowledged_at = models.DateTimeField(null=True, blank=True)
+    snoozed_until = models.DateTimeField(null=True, blank=True)
+
+    class Meta(BaseModel.Meta):
+        verbose_name = "وضعیت اعلان کاربر"
+        verbose_name_plural = "وضعیت اعلان‌های کاربران"
+        constraints = [
+            models.UniqueConstraint(fields=["notification", "user"], name="unique_notification_receipt_per_user")
+        ]
+
+    def is_suppressed_now(self) -> bool:
+        """True if user has acknowledged or is currently snoozed."""
+        if self.acknowledged_at:
+            return True
+        return bool(self.snoozed_until and self.snoozed_until > timezone.now())
 
 
 class CommonQuestions(models.Model):
