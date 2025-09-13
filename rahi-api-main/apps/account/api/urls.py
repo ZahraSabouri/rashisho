@@ -23,6 +23,7 @@ urlpatterns = [
     path("users/public-profiles/", user.PublicProfileListAV.as_view(), name="user-public-profile-list"),
     path("users/<uuid:id>/project-attractions/", user.PublicUserProjectAttractionsAV.as_view(), name="user-project-attractions"),
     path("me/project-attractions/", user.MeProjectAttractionsAV.as_view(), name="me-project-attractions"),
+    path("users-project-attractions-report/", reports.UsersProjectAttractionsReportAPV.as_view(), name="users-project-attractions-report"),
     # path("users/<uuid:id>/mirror/", user.MirrorFeedbackListAV.as_view(), name="user-mirror"),
     path("users/<uuid:id>/mirror/", user.MirrorFeedbackListAV.as_view(), name="user-mirror-feedbacks"),
     path("me/mirror/", user.MyMirrorFeedbackAV.as_view(), name="me-mirror-feedbacks"),
@@ -31,5 +32,4 @@ urlpatterns = [
     path("messages/conversation/", messages.ConversationListAV.as_view(), name="dm-conversation"),
     path("messages/mark-read/", messages.MarkReadAV.as_view(), name="dm-mark-read"),
     path("messages/unread-count/", messages.UnreadCountAV.as_view(), name="dm-unread-count"),
-
 ]

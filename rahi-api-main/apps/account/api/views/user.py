@@ -372,6 +372,7 @@ class MyMirrorFeedbackAV(ListAPIView):
             .order_by("-created_at")
         )
 
+
 class MirrorFeedbackDetailAV(APIView):
     permission_classes = [permissions.IsAuthenticated]
     schema = TaggedAutoSchema(tags=["User"])
@@ -413,3 +414,15 @@ class MirrorFeedbackDetailAV(APIView):
         if deny: return deny
         obj.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+    
+
+class AdminUserAttractionsByNationalIDAV(APIView):
+    schema = TaggedAutoSchema(tags=["User"])
+    permission_classes = [permissions.IsAdminUser]
+
+    def get(self, request, national_id):
+        user = get_user_model().objects.filter(user_info__national_id=national_id).first()
+        if not user:
+            return Response({"detail": "کاربر یافت نشد"}, status=status.HTTP_404_NOT_FOUND)
+        qs = ProjectAttractiveness.objects.filter(user=user).select_related("project").order_by("priority", "-project__created_at")
+        return Response(ProjectListSerializer([x.project for x in qs], many=True).data, status=status.HTTP_200_OK)

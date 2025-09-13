@@ -2,7 +2,7 @@ from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
 from apps.project import reports
-from apps.project.api.views import project, team, tag, project_status
+from apps.project.api.views import project, team, tag, project_status, attraction
 
 app_name = "project"
 
@@ -45,5 +45,8 @@ urlpatterns = [
     path("project/<uuid:project_id>/related/", tag.RelatedProjectsView.as_view(), name="related-projects"),
     path("activation/", project_status.ProjectActivationView.as_view(), name="project-activation"),
     path("status/<uuid:project_id>/", project_status.SingleProjectStatusView.as_view(), name="single-project-status"),
+    path("attractions/", attraction.MyAttractionsAV.as_view(), name="my-attractions"),
+    path("attractions/reorder/", attraction.MyAttractionsReorderAV.as_view(), name="my-attractions-reorder"),
+    path("attractions/<uuid:project_id>/", attraction.MyAttractionDeleteAV.as_view(), name="my-attractions-delete"),
     path("", include(router.urls)),
 ]
