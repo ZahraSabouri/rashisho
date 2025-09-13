@@ -29,7 +29,9 @@ class AnnouncementOutSerializer(NotificationSerializer):
     user_state = AnnouncementStateSerializer()
 
     class Meta(NotificationSerializer.Meta):
-        fields = list(NotificationSerializer.Meta.fields) + ["user_state"]
+        # fields = list(NotificationSerializer.Meta.fields) + ["user_state"]
+        fields = NotificationSerializer.Meta.fields
+
 
 
 class UserNotificationSer(ModelSerializer):

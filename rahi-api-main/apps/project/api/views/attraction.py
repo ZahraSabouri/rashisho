@@ -19,6 +19,7 @@ class MyAttractionsAV(APIView):
     schema = TaggedAutoSchema(tags=["Project Attractions"])
 
     @extend_schema(
+        tags=["Project Attractions"],
         responses={200: ProjectListSerializer(many=True)},
         operation_id="my_attractions_list",
         description="List my attractive projects (ordered by priority, then newest).",
@@ -35,6 +36,7 @@ class MyAttractionsAV(APIView):
         return Response({"results": data}, status=status.HTTP_200_OK)
 
     @extend_schema(
+        tags=["Project Attractions"],
         request=AttractionCreateSerializer,
         responses={201: OpenApiResponse(response=None)},
         operation_id="my_attractions_add",
@@ -87,6 +89,7 @@ class MyAttractionsReorderAV(APIView):
     schema = TaggedAutoSchema(tags=["Project Attractions"])
 
     @extend_schema(
+        tags=["Project Attractions"],
         request=AttractionReorderSerializer,
         responses={200: OpenApiResponse(response=None)},
         operation_id="my_attractions_reorder",
@@ -118,6 +121,7 @@ class MyAttractionDeleteAV(APIView):
     
 
     @extend_schema(
+        tags=["Project Attractions"],
         responses={204: OpenApiResponse(response=None)},
         operation_id="my_attractions_delete",
         description="Remove one project from my attractions.",

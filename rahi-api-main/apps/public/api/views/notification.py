@@ -24,6 +24,7 @@ class NotificationViewSet(viewsets.ModelViewSet):
     ordering_fields = "__all__"
 
     @extend_schema(
+        tags=["Notification"],
         description="Return the single active announcement for the current user context. "
                     "If user has already acknowledged or is snoozed, returns 204.",
         responses={200: AnnouncementOutSerializer, 204: OpenApiResponse(response=None)},
@@ -53,6 +54,7 @@ class NotificationViewSet(viewsets.ModelViewSet):
         return Response(payload, status=status.HTTP_200_OK)
 
     @extend_schema(
+        tags=["Notification"],
         description='Mark the given announcement as "Got it" for the current user.',
         responses={200: OpenApiResponse(response=None)},
     )
@@ -66,6 +68,7 @@ class NotificationViewSet(viewsets.ModelViewSet):
         return Response(status=status.HTTP_200_OK)
 
     @extend_schema(
+        tags=["Notification"],
         request=SnoozeSer,
         description='Snooze the announcement (e.g., "Remind later").',
         responses={200: OpenApiResponse(response=None)},
@@ -90,7 +93,10 @@ class UserNotificationViewSet(viewsets.ReadOnlyModelViewSet):
     def get_queryset(self):
         return UserNotification.objects.filter(user=self.request.user)
 
-    @extend_schema(request=MarkReadSer, responses={200: OpenApiResponse(response=None)})
+    @extend_schema(
+        tags=["Notification"],
+        request=MarkReadSer, 
+        responses={200: OpenApiResponse(response=None)})
     @action(methods=["post"], detail=False, url_path="mark-read")
     def mark_read(self, request):
         ser = MarkReadSer(data=request.data)
@@ -98,7 +104,9 @@ class UserNotificationViewSet(viewsets.ReadOnlyModelViewSet):
         UserNotification.objects.filter(user=request.user, id__in=ser.validated_data["ids"]).update(is_read=True)
         return Response(status=status.HTTP_200_OK)
 
-    @extend_schema(responses={200: OpenApiResponse(response=None)})
+    @extend_schema(
+        tags=["Notification"],
+        responses={200: OpenApiResponse(response=None)})
     @action(methods=["get"], detail=False, url_path="unread-count")
     def unread_count(self, request):
         return Response({"count": self.get_queryset().filter(is_read=False).count()}, status=status.HTTP_200_OK)
