@@ -252,7 +252,7 @@ class CommentExportSerializer(serializers.ModelSerializer):
     user_name = serializers.CharField(source='user.full_name', read_only=True)
     user_username = serializers.CharField(source='user.username', read_only=True)
     content_type_name = serializers.CharField(source='content_type.model', read_only=True)
-    parent_content = serializers.CharField(source='parent.content', read_only=True)
+    parent_content = serializers.CharField(source='parent.content', read_only=True, allow_null=True,  required=False)
     approved_by_name = serializers.CharField(source='approved_by.full_name', read_only=True)
     
     class Meta:

@@ -327,7 +327,7 @@ class CommentViewSet(ModelViewSet):
                 comment_data['user_username'] or '',
                 comment_data['content_type_name'] or '',
                 comment_data['object_id'],
-                comment_data['parent_content'][:50] if comment_data['parent_content'] else '',
+                (comment_data.get('parent_content') or '')[:50],
                 comment_data['likes_count'],
                 comment_data['dislikes_count'],
                 comment_data['replies_count'],
