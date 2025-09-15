@@ -2,7 +2,7 @@ from typing import List, Dict, Optional, Tuple, Union
 from uuid import UUID
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
-from django.db.models import Count, Q, Prefetch
+from django.db.models import Count, Q, Sum, Prefetch
 from django.core.cache import cache
 from django.utils import timezone
 from datetime import timedelta
@@ -10,11 +10,6 @@ from datetime import timedelta
 from apps.comments.models import Comment, CommentReaction, CommentModerationLog
 
 class CommentService:
-    """
-    Service class for comment-related business logic.
-    Handles complex operations, caching, and integrations.
-    """
-    
     @staticmethod
     def get_comments_for_object(content_type_str: str, object_id, user=None, include_pending: bool=False) -> List[Comment]:
         object_id = str(object_id)
@@ -312,17 +307,8 @@ class CommentService:
 
 
 class CommentNotificationService:
-    """
-    Service for handling comment-related notifications.
-    Can be extended to integrate with notification systems.
-    """
-    
     @staticmethod
     def notify_comment_created(comment: Comment):
-        """
-        Handle notifications when a new comment is created.
-        This is a placeholder for future notification integration.
-        """
         # Future implementation could:
         # - Send email to project owner
         # - Create in-app notification
@@ -332,7 +318,6 @@ class CommentNotificationService:
     
     @staticmethod
     def notify_comment_approved(comment: Comment):
-        """Handle notifications when a comment is approved."""
         # Future implementation could:
         # - Notify comment author
         # - Update project metrics
@@ -340,7 +325,6 @@ class CommentNotificationService:
     
     @staticmethod
     def notify_comment_reply(comment: Comment):
-        """Handle notifications when someone replies to a comment."""
         if comment.parent:
             # Future implementation could:
             # - Notify parent comment author
@@ -349,10 +333,6 @@ class CommentNotificationService:
 
 
 class CommentExportService:
-    """
-    Service for exporting comment data in various formats.
-    """
-    
     @staticmethod
     def export_to_csv(queryset, include_content: bool = True) -> str:
         """
@@ -401,7 +381,6 @@ class CommentExportService:
     
     @staticmethod
     def export_project_comments(project_id: int, format: str = 'csv') -> str:
-        """Export all comments for a specific project."""
         comments = Comment.objects.filter(
             content_type__app_label='project',
             content_type__model='project',
@@ -416,7 +395,6 @@ class CommentExportService:
 
 # Utility functions for common operations
 def get_or_create_content_type(app_label: str, model: str) -> ContentType:
-    """Helper to get content type safely."""
     try:
         return ContentType.objects.get(app_label=app_label, model=model)
     except ContentType.DoesNotExist:
@@ -424,12 +402,42 @@ def get_or_create_content_type(app_label: str, model: str) -> ContentType:
 
 
 def can_user_moderate_comments(user) -> bool:
-    """Check if user has comment moderation permissions."""
     return user and hasattr(user, 'role') and user.role == 0
 
 
 def format_comment_content(content: str, max_length: int = 100) -> str:
-    """Format comment content for display."""
     if len(content) <= max_length:
         return content
     return content[:max_length-3] + "..."
+
+
+class ProjectCommentService:
+    CONTENT_TYPE_STR = "project.project"
+
+    @staticmethod
+    def get_project_comments(project_id, user=None, include_pending=False):
+        return CommentService.get_comments_for_object(
+            ProjectCommentService.CONTENT_TYPE_STR,
+            project_id,
+            user=user,
+            include_pending=include_pending,
+        )
+
+    @staticmethod
+    def get_project_comment_summary(project_id):
+        from django.contrib.contenttypes.models import ContentType
+        from apps.comments.models import Comment
+
+        ct = ContentType.objects.get(app_label="project", model="project")
+        qs = Comment.objects.filter(content_type=ct, object_id=str(project_id))
+        agg = qs.aggregate(
+            total=Count("id"),
+            approved=Count("id", filter=Q(status="APPROVED")),
+            pending=Count("id", filter=Q(status="PENDING")),
+            rejected=Count("id", filter=Q(status="REJECTED")),
+            total_likes=Sum("likes_count"),
+            total_dislikes=Sum("dislikes_count"),
+        )
+        # Normalize None to 0
+        return {k: (agg.get(k) or 0) for k in ["total","approved","pending","rejected","total_likes","total_dislikes"]}
+    
