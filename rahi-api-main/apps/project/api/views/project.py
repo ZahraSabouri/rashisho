@@ -65,19 +65,33 @@ class ProjectViewSet(ModelViewSet):
 
         applied_filters = self._get_applied_filters(request.GET)
 
-        ordering = request.GET.get("ordering")
-        if not ordering:
-            ordering = "-relatability" if request.user.is_authenticated else "-created_at"
+        # ordering = request.GET.get("ordering")
+        # if not ordering:
+        #     ordering = "-relatability" if request.user.is_authenticated else "-created_at"
 
-        qs = qs.order_by(ordering)
+        # qs = qs.order_by(ordering)
 
-        if request.user.is_authenticated and ordering in ("relatability", "-relatability"):
+        # if request.user.is_authenticated and ordering in ("relatability", "-relatability"):
+        #     window = list(qs[:500])
+        #     from apps.project.services import compute_project_relatability
+        #     scored = [(compute_project_relatability(p, request.user)["score"], p) for p in window]
+        #     reverse = ordering.startswith("-")
+        #     scored.sort(key=lambda x: x[0], reverse=reverse)
+        #     qs = [p for _, p in scored]
+
+        ordering_param = request.GET.get("ordering")
+
+        if request.user.is_authenticated and (ordering_param in ("relatability", "-relatability") or ordering_param is None):
             window = list(qs[:500])
             from apps.project.services import compute_project_relatability
             scored = [(compute_project_relatability(p, request.user)["score"], p) for p in window]
-            reverse = ordering.startswith("-")
+            reverse = (ordering_param is None) or ordering_param.startswith("-")
             scored.sort(key=lambda x: x[0], reverse=reverse)
             qs = [p for _, p in scored]
+            ordering = ordering_param or "-relatability"
+        else:
+            ordering = ordering_param or "-created_at"
+            qs = qs.order_by(ordering)
 
         paginator = Pagination()
         page = paginator.paginate_queryset(qs, request)
