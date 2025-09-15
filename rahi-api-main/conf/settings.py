@@ -43,7 +43,7 @@ INSTALLED_APPS = [
 ]
 
 LOCAL_APPS = [
-    "apps.api",  # ← ADD THIS so AppConfig.ready() runs and registers the extension
+    "apps.api",  
     "apps.account",
     "apps.resume",
     "apps.settings",
@@ -52,6 +52,7 @@ LOCAL_APPS = [
     "apps.project",
     "apps.community",
     "apps.comments",
+    "apps.blog",
     "apps.manager"
 ]
 
