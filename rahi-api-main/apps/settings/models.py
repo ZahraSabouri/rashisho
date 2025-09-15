@@ -5,13 +5,51 @@ from apps.common.models import BaseModel
 
 class Province(models.Model):
     title = models.CharField(max_length=30, verbose_name="عنوان")
-
-    def __str__(self):
-        return self.title
+    phone_code = models.CharField(
+        max_length=3,
+        default="21",
+        verbose_name="کد تلفن استان",
+        help_text="کد تلفن استان برای تولید کد تیم"
+    )
+    PROVINCE_PHONE_CODES = {
+    "تهران": "21",
+    "اصفهان": "31", 
+    "مشهد": "51",
+    "شیراز": "71",
+    "تبریز": "41",
+    "کرج": "26",
+    "قم": "25",
+    "اهواز": "61",
+    "کرمانشاه": "83",
+    "ارومیه": "44",
+    "رشت": "13",
+    "کرمان": "34",
+    "همدان": "81",
+    "یزد": "35",
+    "اردبیل": "45",
+    "بندرعباس": "76",
+    "زنجان": "24",
+    "سنندج": "87",
+    "قزوین": "28",
+    "ساری": "11",
+    "بجنورد": "58",
+    "خرم‌آباد": "66",
+    "ایلام": "84",
+    "بوشهر": "77",
+    "بیرجند": "56",
+    "شهرکرد": "38",
+    "یاسوج": "74",
+    "گرگان": "17",
+    "زاهدان": "54",
+    "سمنان": "23",
+}
 
     class Meta:
         verbose_name = "استان"
         verbose_name_plural = "استان ها"
+
+    def __str__(self):
+        return f"{self.title} ({self.phone_code})"
 
 
 class City(models.Model):

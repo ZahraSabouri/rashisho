@@ -358,18 +358,13 @@ class Project(BaseModel):
 
     @property
     def has_comments(self):
-        """آیا این پروژه نظراتی دارد؟"""
         return self.comments_count > 0
 
     @property
     def comment_engagement_rate(self):
-        """نرخ مشارکت در نظرات (نظرات به ازای هر بازدید - اگر سیستم view tracking داشته باشیم)"""
-        # این محاسبه نیاز به سیستم tracking بازدید دارد
-        # فعلاً یک نسبت ساده برمی‌گردانیم
         comments = self.comments_count
         if comments == 0:
             return 0
-        # فرض می‌کنیم هر پروژه حداقل 100 بازدید دارد (می‌تواند از سیستم analytics واقعی بیاید)
         estimated_views = max(100, comments * 10)
         return round((comments / estimated_views) * 100, 2)
 
@@ -382,7 +377,6 @@ class Project(BaseModel):
         ]
 
     def clean(self):
-        """Validate project data"""
         super().clean()
         # if self.start_date and self.end_date:
         #     if self.start_date >= self.end_date:
@@ -397,12 +391,10 @@ class Project(BaseModel):
 
     @property
     def can_be_selected(self):
-        """Check if project can be selected by users"""
         return self.visible and self.is_active
 
     @property
     def status_display(self):
-        """Return user-friendly status"""
         if not self.visible:
             return "مخفی"
         elif not self.is_active:
@@ -412,11 +404,9 @@ class Project(BaseModel):
 
     @property
     def tags_list(self):
-        """Return list of tag names"""
         return [tag.name for tag in self.tags.all()]
 
     def get_related_projects(self, limit=5):
-        """Find related projects based on shared tags"""
         if not self.tags.exists():
             return self.__class__.objects.none()
 
@@ -434,7 +424,6 @@ class Project(BaseModel):
 
     @property
     def status_display(self):
-        """Return user-friendly status"""
         if not self.visible:
             return "مخفی"
         elif not self.is_active:
@@ -443,12 +432,10 @@ class Project(BaseModel):
             return "فعال"
 
     def activate(self):
-        """Activate the project"""
         self.is_active = True
         self.save(update_fields=['is_active'])
 
     def deactivate(self):
-        """Deactivate the project"""
         self.is_active = False
         self.save(update_fields=['is_active'])
 
@@ -460,7 +447,6 @@ class Project(BaseModel):
         return f"{status_emoji} {self.title}"
 
     def get_related_projects(self, limit=6):
-        """Get projects with shared tags"""
         if not self.tags.exists():
             return Project.objects.none()
 
@@ -615,37 +601,377 @@ class UserScenarioTaskFile(BaseModel):
 
 
 class Team(BaseModel):
-    title = models.CharField(max_length=300, validators=[validate_persian, MinLengthValidator(3)], verbose_name="نام")
+    title = models.CharField(
+        max_length=300, 
+        validators=[validate_persian, MinLengthValidator(3)], 
+        verbose_name="نام"
+    )
     description = models.TextField(null=True, verbose_name="توضیحات")
     count = models.PositiveSmallIntegerField(
-        null=True, validators=[MinValueValidator(2), MaxValueValidator(6)], verbose_name="تعداد اعضا"
+        null=True, 
+        validators=[MinValueValidator(2), MaxValueValidator(6)], 
+        verbose_name="تعداد اعضا"
     )
-    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="teams", verbose_name="پروژه")
+    project = models.ForeignKey(
+        'Project', 
+        on_delete=models.CASCADE, 
+        related_name="teams", 
+        verbose_name="پروژه"
+    )
+
     create_date = models.DateField(null=True, verbose_name="تاریخ تشکیل تیم")
+    team_code = models.CharField(
+        max_length=10, 
+        unique=True, 
+        blank=True,
+        verbose_name="کد تیم",
+        help_text="کد تیم به صورت خودکار تولید می‌شود"
+    )
+    
+    TEAM_STAGES = [
+        (1, "مرحله اول - ناپایدار"),
+        (2, "مرحله دوم - ناپایدار"), 
+        (3, "مرحله سوم - ناپایدار"),
+        (4, "مرحله پایدار"),
+    ]
+    
+    team_building_stage = models.IntegerField(
+        choices=TEAM_STAGES,
+        default=4,
+        verbose_name="مرحله تیم‌سازی"
+    )
+    
+    dissolution_requested_by = models.ForeignKey(
+        get_user_model(), 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        related_name="dissolution_requests",
+        verbose_name="درخواست کننده انحلال"
+    )
+    dissolution_requested_at = models.DateTimeField(
+        null=True, 
+        blank=True,
+        verbose_name="زمان درخواست انحلال"
+    )
+    is_dissolution_in_progress = models.BooleanField(
+        default=False,
+        verbose_name="در حال انحلال"
+    )
 
     class Meta(BaseModel.Meta):
         verbose_name = "تیم"
         verbose_name_plural = "تیم ها"
 
     def __str__(self) -> str:
-        return self.title
+        return f"{self.title} ({self.team_code})" if self.team_code else self.title
+    
+    def save(self, *args, **kwargs):
+        if not self.team_code:
+            self.team_code = self.generate_team_code()
+        super().save(*args, **kwargs)
+
+    def generate_team_code(self):
+        # Get team leader to determine province
+        leader = self.get_leader_user()
+        if not leader:
+            # Fallback to a default if no leader yet
+            province_code = "21"  # Default to Tehran
+        else:
+            # Get leader's team formation province from resume
+            resume = getattr(leader, 'resume', None)
+            if resume and resume.team_formation_province:
+                province_code = resume.team_formation_province.phone_code
+            else:
+                province_code = "21"  # Default to Tehran
+        
+        # Get stage number
+        stage = str(self.team_building_stage)
+        
+        # Generate sequence number (001-999)
+        existing_teams = Team.objects.filter(
+            team_code__startswith=f"{province_code}{stage}"
+        ).count()
+        
+        sequence = str(existing_teams + 1).zfill(3)
+        
+        # Ensure sequence doesn't exceed 999
+        if int(sequence) > 999:
+            sequence = "999"
+        
+        return f"{province_code}{stage}{sequence}"
+    
+    def get_leader_user(self):
+        leader_request = self.requests.filter(user_role="C", status="A", request_type="JOIN").first()
+        return leader_request.user if leader_request else None
+    
+    def get_leader(self):
+        return self.requests.filter(user_role="C", status="A", request_type="JOIN").first()
+    
+    def get_deputy(self):
+        return self.requests.filter(user_role="D", status="A", request_type="JOIN").first()
+    
+    def get_deputy_user(self):
+        deputy_request = self.get_deputy()
+        return deputy_request.user if deputy_request else None
+    
+    def get_leadership(self):
+        return self.requests.filter(
+            user_role__in=["C", "D"], 
+            status="A", 
+            request_type="JOIN"
+        )
+    
+    def has_deputy(self):
+        return self.get_deputy() is not None
+    
+    def can_user_manage_team(self, user):
+        leadership = self.get_leadership().filter(user=user)
+        return leadership.exists()
+    
+    def promote_to_deputy(self, user, promoted_by):
+        from django.db import transaction
+        
+        # Check if user is a member
+        membership = self.requests.filter(
+            user=user, 
+            status='A', 
+            request_type='JOIN',
+            user_role='M'
+        ).first()
+        
+        if not membership:
+            raise ValueError("کاربر عضو این تیم نیست")
+        
+        # Check if deputy already exists
+        if self.has_deputy():
+            raise ValueError("این تیم قائم مقام دارد")
+        
+        with transaction.atomic():
+            # Update user role to deputy
+            membership.user_role = 'D'
+            membership.save()
+            
+            # Import here to avoid circular import
+            from apps.project.models import TeamRequest
+            
+            # Create promotion request record
+            TeamRequest.objects.create(
+                team=self,
+                user=user,
+                request_type='PROMOTE_DEPUTY',
+                user_role='D',
+                status='A',
+                requested_by=promoted_by,
+                description=f'ارتقا به قائم مقام توسط {promoted_by.full_name}'
+            )
+    
+    def demote_deputy(self, demoted_by):
+        from django.db import transaction
+        
+        deputy = self.get_deputy()
+        if not deputy:
+            raise ValueError("این تیم قائم مقام ندارد")
+        
+        with transaction.atomic():
+            # Update role to member
+            deputy.user_role = 'M'
+            deputy.save()
+            
+            # Import here to avoid circular import
+            from apps.project.models import TeamRequest
+            
+            # Create demotion request record
+            TeamRequest.objects.create(
+                team=self,
+                user=deputy.user,
+                request_type='DEMOTE_DEPUTY',
+                user_role='M',
+                status='A',
+                requested_by=demoted_by,
+                description=f'تنزل از قائم مقام توسط {demoted_by.full_name}'
+            )
+    
+    def get_members(self):
+        return get_user_model().objects.filter(
+            team_requests__team=self, 
+            team_requests__status="A",
+            team_requests__request_type="JOIN"
+        )
+    
+    def get_member_count(self):
+        return self.requests.filter(
+            status="A", 
+            request_type="JOIN"
+        ).count()
+    
+    def can_dissolve(self):
+        if not self.is_dissolution_in_progress:
+            return False
+        
+        member_requests = self.requests.filter(
+            status="A", 
+            request_type="JOIN"
+        ).exclude(user_role="C")
+        
+        # Import here to avoid circular import
+        from apps.project.models import TeamRequest
+        
+        leave_requests = TeamRequest.objects.filter(
+            team=self,
+            request_type="LEAVE",
+            status="A",
+            user__in=[req.user for req in member_requests]
+        )
+        
+        return leave_requests.count() == member_requests.count()
+
+
+
+class ProvinceExtension:
+    """
+    Add this field to apps/settings/models.py Province model if not exists:
+    
+    phone_code = models.CharField(
+        max_length=3,
+        default="21", 
+        verbose_name="کد تلفن استان",
+        help_text="کد تلفن استان برای تولید کد تیم"
+    )
+    """
+    pass
 
 
 class TeamRequest(BaseModel):
-    REQUEST_STATUS = [("A", "قبول"), ("R", "رد"), ("W", "در انتظار")]
-    USER_ROLE = [("C", "ایجاد کننده"), ("M", "عضو")]
+    REQUEST_STATUS = [
+        ("A", "قبول"), 
+        ("R", "رد"), 
+        ("W", "در انتظار")
+    ]
+    
+    USER_ROLE = [
+        ("C", "سرگروه"),  # Captain/Leader
+        ("D", "قائم مقام"),  # Deputy  
+        ("M", "عضو")       # Member
+    ]
+    
+    REQUEST_TYPE = [
+        ("JOIN", "درخواست عضویت"),
+        ("LEAVE", "درخواست خروج"),
+        ("INVITE", "دعوت به عضویت"),
+        ("DISSOLVE", "درخواست انحلال تیم"),
+        ("PROMOTE_DEPUTY", "ارتقا به قائم مقام"),
+        ("DEMOTE_DEPUTY", "تنزل از قائم مقام"),
+        ("TRANSFER_LEADERSHIP", "انتقال رهبری")
+    ]
 
-    team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name="requests", verbose_name="تیم")
-    user = models.ForeignKey(
-        get_user_model(), on_delete=models.CASCADE, related_name="team_requests", verbose_name="کاربر"
+    team = models.ForeignKey(
+        "Team", 
+        on_delete=models.CASCADE, 
+        related_name="requests", 
+        verbose_name="تیم"
     )
-    status = models.CharField(max_length=1, choices=REQUEST_STATUS, default="W", verbose_name="وضعیت درخواست")
-    user_role = models.CharField(max_length=1, choices=USER_ROLE, verbose_name="نقش در تیم")
-    description = models.TextField(null=True, verbose_name="توضیحات")
+    user = models.ForeignKey(
+        get_user_model(), 
+        on_delete=models.CASCADE, 
+        related_name="team_requests", 
+        verbose_name="کاربر"
+    )
+    status = models.CharField(
+        max_length=1, 
+        choices=REQUEST_STATUS, 
+        default="W", 
+        verbose_name="وضعیت درخواست"
+    )
+    user_role = models.CharField(
+        max_length=1, 
+        choices=USER_ROLE, 
+        verbose_name="نقش در تیم"
+    )
+    request_type = models.CharField(
+        max_length=25,
+        choices=REQUEST_TYPE,
+        default="JOIN",
+        verbose_name="نوع درخواست"
+    )
+    requested_by = models.ForeignKey(
+        get_user_model(),
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="initiated_requests",
+        verbose_name="درخواست کننده"
+    )
+    description = models.TextField(
+        blank=True,
+        verbose_name="توضیحات"
+    )
 
     class Meta(BaseModel.Meta):
-        verbose_name = "درخواست هم تیمی"
-        verbose_name_plural = "درخواست های هم تیمی"
+        verbose_name = "درخواست تیم"
+        verbose_name_plural = "درخواست‌های تیم"
+        
+        # Ensure only one active membership per user per team
+        constraints = [
+            models.UniqueConstraint(
+                fields=['team', 'user', 'request_type'],
+                condition=models.Q(status='A', request_type='JOIN'),
+                name='unique_active_team_membership'
+            ),
+            # Ensure only one leader per team
+            models.UniqueConstraint(
+                fields=['team'],
+                condition=models.Q(status='A', user_role='C', request_type='JOIN'),
+                name='unique_team_leader'
+            ),
+            # Ensure only one deputy per team
+            models.UniqueConstraint(
+                fields=['team'],
+                condition=models.Q(status='A', user_role='D', request_type='JOIN'),
+                name='unique_team_deputy'
+            )
+        ]
 
-    def __str__(self) -> str:
-        return f"{self.user.full_name} - {self.team.title}"
+    def __str__(self):
+        return f"{self.user.full_name} - {self.get_request_type_display()} ({self.get_status_display()})"
+    
+    def is_leadership_role(self):
+        return self.user_role in ['C', 'D']
+    
+    def can_approve_requests(self):
+        return self.user_role in ['C', 'D'] and self.status == 'A'
+
+
+class TeamBuildingAnnouncement(BaseModel):
+    title = models.CharField(max_length=200, verbose_name="عنوان")
+    content = models.TextField(verbose_name="متن اطلاعیه")
+    is_active = models.BooleanField(default=True, verbose_name="فعال")
+    order = models.PositiveIntegerField(default=0, verbose_name="ترتیب نمایش")
+    
+    class Meta(BaseModel.Meta):
+        verbose_name = "اطلاعیه تیم‌سازی"
+        verbose_name_plural = "اطلاعیه‌های تیم‌سازی"
+        ordering = ['order', '-created_at']
+    
+    def __str__(self):
+        return self.title
+
+
+class TeamBuildingVideoButton(BaseModel):
+    announcement = models.ForeignKey(
+        TeamBuildingAnnouncement,
+        on_delete=models.CASCADE,
+        related_name='video_buttons',
+        verbose_name="اطلاعیه"
+    )
+    title = models.CharField(max_length=100, verbose_name="عنوان دکمه")
+    video_url = models.URLField(verbose_name="لینک ویدیو")
+    order = models.PositiveIntegerField(default=0, verbose_name="ترتیب")
+    
+    class Meta(BaseModel.Meta):
+        verbose_name = "دکمه ویدیوی آموزشی"
+        verbose_name_plural = "دکمه‌های ویدیوی آموزشی"
+        ordering = ['order']
+    
+    def __str__(self):
+        return f"{self.announcement.title} - {self.title}"

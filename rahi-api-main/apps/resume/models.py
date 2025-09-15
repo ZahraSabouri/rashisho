@@ -1,6 +1,7 @@
 from django.contrib.auth import get_user_model
 from django.core.exceptions import FieldDoesNotExist
 from django.db import models
+from apps.settings.models import Province
 
 from apps.common.models import BaseModel
 from apps.settings.models import ConnectionWay, ForeignLanguage, StudyField, University
@@ -28,11 +29,18 @@ class Resume(BaseModel):
     user = models.OneToOneField(get_user_model(), on_delete=models.CASCADE, verbose_name="کاربر", related_name="resume")
     status = models.CharField(max_length=2, choices=RESUME_STATUS, default="CR", verbose_name="وضعیت")
     steps = models.JSONField(default=default_resume_step)
+    team_formation_province = models.ForeignKey(
+        Province,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='team_formation_resumes',
+        verbose_name="استان محل تشکیل تیم",
+        help_text="استان محل سکونت/کار برای تشکیل تیم. این فیلد برای برنامه‌ریزی جلسات حضوری استانی استفاده می‌شود."
+    )
 
     @property
     def resume_completed(self):
-        """Here we check if a resume completed or not."""
-
         second_step = "2"
 
         if second_step not in self.steps or self.steps[f"{second_step}"] == "started":

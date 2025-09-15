@@ -24,7 +24,6 @@ class ProjectAttractivenessAdmin(admin.ModelAdmin):
 
 
 class ProjectStatusFilter(admin.SimpleListFilter):
-    """Custom filter for project status"""
     title = 'وضعیت فعالیت'
     parameter_name = 'activation_status'
 
@@ -49,7 +48,6 @@ class ProjectStatusFilter(admin.SimpleListFilter):
 
 
 class TagAdmin(admin.ModelAdmin):
-    """Admin interface for Tag model"""
     list_display = ['name', 'description', 'usage_count', 'created_at']
     list_filter = ['created_at']
     search_fields = ['name', 'description']
@@ -57,7 +55,6 @@ class TagAdmin(admin.ModelAdmin):
     ordering = ['name']
 
     def usage_count(self, obj):
-        """Display how many projects use this tag"""
         count = obj.projects.count()
         color = '#dc3545' if count == 0 else '#007bff'
         return format_html(
@@ -68,12 +65,10 @@ class TagAdmin(admin.ModelAdmin):
     usage_count.short_description = 'تعداد استفاده'
 
     def get_queryset(self, request):
-        """Optimize queryset"""
         return super().get_queryset(request).prefetch_related('projects')
 
 
 class ProjectAdmin(admin.ModelAdmin):
-    """Enhanced Project admin with activation status management"""
     
     list_display = [
         'title', 'company', 'status_indicator', 'visible', 'is_active', 
@@ -139,7 +134,6 @@ class ProjectAdmin(admin.ModelAdmin):
     ]
 
     def current_phase_display(self, obj):
-        """Display current phase with auto-transition indicator"""
         phase_color = {
             'BEFORE': '🔴',
             'ACTIVE': '🟢', 
@@ -150,7 +144,6 @@ class ProjectAdmin(admin.ModelAdmin):
     current_phase_display.short_description = "فاز فعلی"
     
     def selection_dates_display(self, obj):
-        """Display selection start/end dates"""
         if obj.selection_start and obj.selection_end:
             start = obj.selection_start.strftime("%m/%d %H:%M")
             end = obj.selection_end.strftime("%m/%d %H:%M") 
@@ -163,16 +156,13 @@ class ProjectAdmin(admin.ModelAdmin):
     selection_dates_display.short_description = "تاریخ‌های انتخاب"
     
     def attractiveness_count(self, obj):
-        """Show current attractiveness count"""
         from apps.project.services import count_project_attractiveness
         if obj.show_attractiveness:
             return count_project_attractiveness(obj.id)
         return "-"
     attractiveness_count.short_description = "جذابیت"
     
-    # Admin Actions
     def activate_selection_phase(self, request, queryset):
-        """Activate selection phase for selected projects"""
         updated = queryset.update(
             selection_phase=models.ProjectPhase.SELECTION_ACTIVE,
             selection_start=timezone.now()
@@ -185,7 +175,6 @@ class ProjectAdmin(admin.ModelAdmin):
     activate_selection_phase.short_description = "فعال‌سازی فاز انتخاب"
     
     def finish_selection_phase(self, request, queryset):
-        """Finish selection phase for selected projects"""
         updated = queryset.update(
             selection_phase=models.ProjectPhase.SELECTION_FINISHED,
             selection_end=timezone.now()
@@ -198,7 +187,6 @@ class ProjectAdmin(admin.ModelAdmin):
     finish_selection_phase.short_description = "پایان فاز انتخاب"
     
     def reset_to_before_selection(self, request, queryset):
-        """Reset projects to before selection phase"""
         updated = queryset.update(
             selection_phase=models.ProjectPhase.BEFORE_SELECTION
         )
@@ -210,7 +198,6 @@ class ProjectAdmin(admin.ModelAdmin):
     reset_to_before_selection.short_description = "بازگشت به قبل از انتخاب"
     
     def enable_auto_transition(self, request, queryset):
-        """Enable automatic phase transition"""
         updated = queryset.update(auto_phase_transition=True)
         self.message_user(
             request,
@@ -220,7 +207,6 @@ class ProjectAdmin(admin.ModelAdmin):
     enable_auto_transition.short_description = "فعال‌سازی تغییر خودکار فاز"
     
     def disable_auto_transition(self, request, queryset):
-        """Disable automatic phase transition"""
         updated = queryset.update(auto_phase_transition=False)
         self.message_user(
             request,
@@ -230,7 +216,6 @@ class ProjectAdmin(admin.ModelAdmin):
     disable_auto_transition.short_description = "غیرفعال‌سازی تغییر خودکار فاز"
 
     def status_indicator(self, obj):
-        """Visual status indicator"""
         if not obj.visible:
             return format_html(
                 '<span style="color: #666; font-weight: bold;">🙈 مخفی</span>'
@@ -246,7 +231,6 @@ class ProjectAdmin(admin.ModelAdmin):
     status_indicator.short_description = 'وضعیت'
     
     def tag_count(self, obj):
-        """Display number of tags"""
         count = obj.tag_count if hasattr(obj, 'tag_count') else obj.tags.count()
         return format_html(
             '<span style="background-color: #007bff; color: white; padding: 2px 6px; '
@@ -256,7 +240,6 @@ class ProjectAdmin(admin.ModelAdmin):
     tag_count.short_description = 'تعداد تگ‌ها'
     
     def study_field_count(self, obj):
-        """Display number of study fields"""
         count = obj.field_count if hasattr(obj, 'field_count') else obj.study_fields.count()
         return format_html(
             '<span style="background-color: #28a745; color: white; padding: 2px 6px; '
@@ -266,7 +249,6 @@ class ProjectAdmin(admin.ModelAdmin):
     study_field_count.short_description = 'تعداد رشته‌ها'
     
     def allocations_count(self, obj):
-        """Display number of allocations"""
         count = obj.allocation_count if hasattr(obj, 'allocation_count') else obj.allocations.count()
         color = '#dc3545' if count == 0 else '#17a2b8'
         return format_html(
@@ -277,7 +259,6 @@ class ProjectAdmin(admin.ModelAdmin):
     allocations_count.short_description = 'تعداد تخصیص‌ها'
     
     def get_queryset(self, request):
-        """Optimize queryset with annotations"""
         queryset = super().get_queryset(request)
         return queryset.prefetch_related('tags', 'study_fields', 'allocations').annotate(
             tag_count=Count("tags", distinct=True),
@@ -287,32 +268,27 @@ class ProjectAdmin(admin.ModelAdmin):
     
     # Bulk Actions
     def activate_projects(self, request, queryset):
-        """Bulk activate projects"""
         updated = queryset.update(is_active=True)
         self.message_user(request, f'{updated} پروژه فعال شد.')
     activate_projects.short_description = "فعال کردن پروژه‌های انتخابی"
     
     def deactivate_projects(self, request, queryset):
-        """Bulk deactivate projects"""
         updated = queryset.update(is_active=False)
         self.message_user(request, f'{updated} پروژه غیرفعال شد.')
     deactivate_projects.short_description = "غیرفعال کردن پروژه‌های انتخابی"
     
     def make_visible(self, request, queryset):
-        """Bulk make projects visible"""
         updated = queryset.update(visible=True)
         self.message_user(request, f'{updated} پروژه قابل مشاهده شد.')
     make_visible.short_description = "قابل مشاهده کردن پروژه‌های انتخابی"
     
     def make_hidden(self, request, queryset):
-        """Bulk hide projects"""
         updated = queryset.update(visible=False)
         self.message_user(request, f'{updated} پروژه مخفی شد.')
     make_hidden.short_description = "مخفی کردن پروژه‌های انتخابی"
 
 
 class ProjectAllocationAdmin(admin.ModelAdmin):
-    """Admin for project allocations"""
     search_fields = ["user__id", "user__user_info__national_id"]
 
     def get_search_results(self, request, queryset, search_term):
@@ -326,6 +302,23 @@ class TeamAdmin(admin.ModelAdmin):
 
 class TeamRequestAdmin(admin.ModelAdmin):
     search_fields = ["user__username", "team__title", "status", "user_role"]
+
+
+class TeamBuildingVideoButtonInline(admin.TabularInline):
+    model = models.TeamBuildingVideoButton
+    extra = 1
+    fields = ('title', 'video_url', 'order')
+
+
+@admin.register(models.TeamBuildingAnnouncement)
+class TeamBuildingAnnouncementAdmin(admin.ModelAdmin):
+    list_display = ('title', 'is_active', 'order', 'created_at')
+    list_filter = ('is_active', 'created_at')
+    search_fields = ('title', 'content')
+    ordering = ('order', '-created_at')
+    inlines = [TeamBuildingVideoButtonInline]
+    
+    fields = ('title', 'content', 'is_active', 'order')
 
 
 class UserScenarioTaskFileAdmin(admin.ModelAdmin):
