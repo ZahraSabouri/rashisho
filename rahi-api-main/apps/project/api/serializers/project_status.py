@@ -3,24 +3,17 @@ from apps.project import models
 
 
 class ProjectStatusSerializer(serializers.ModelSerializer):
-    """
-    Serializer for project status information.
-    Read-only serializer showing current activation state.
-    """
     status_display = serializers.CharField(read_only=True)
     can_be_selected = serializers.BooleanField(read_only=True)
     
     class Meta:
         model = models.Project
-        fields = ['id', 'title', 'is_active', 'visible', 'status_display', 'can_be_selected']
+        fields = ['id', 'title', 'is_active', 'visible', 'status_display', 'can_be_selected',
+                  'deactivation_reason', 'admin_message',]
         read_only_fields = ['id', 'title']
 
 
 class ProjectActivationSerializer(serializers.Serializer):
-    """
-    Serializer for project activation/deactivation operations.
-    Handles bulk activation and validation.
-    """
     project_ids = serializers.ListField(
         child=serializers.UUIDField(),
         min_length=1,
@@ -51,54 +44,52 @@ class ProjectActivationSerializer(serializers.Serializer):
         return value
 
     def update_projects_status(self, validated_data):
-        """Update project activation status"""
-        project_ids = validated_data['project_ids']
-        is_active = validated_data['is_active']
-        reason = validated_data.get('reason', '')
-        
-        updated_count = models.Project.objects.filter(
-            id__in=project_ids
-        ).update(is_active=is_active)
-        
-        # Log the operation for audit purposes
-        import logging
-        logger = logging.getLogger(__name__)
-        action = "فعال‌سازی" if is_active else "غیرفعال‌سازی"
-        logger.info(
-            f"Project status update: {action} {updated_count} projects. "
-            f"Reason: {reason or 'No reason provided'}"
-        )
-        
+        project_ids = validated_data["project_ids"]
+        is_active = validated_data["is_active"]
+        reason = validated_data.get("reason", "")
+
+        qs = models.Project.objects.filter(id__in=project_ids)
+        if is_active:
+            # activating — clear reason only
+            qs.update(is_active=True, deactivation_reason="")
+        else:
+            qs.update(is_active=False, deactivation_reason=reason)
+
         return {
-            'updated_count': updated_count,
-            'action': action,
-            'reason': reason
+            "action": "فعال‌سازی" if is_active else "غیرفعال‌سازی",
+            "updated_count": qs.count(),
+            "reason": reason if not is_active else "",
         }
 
+# class ProjectStatusDetailSerializer(serializers.ModelSerializer):
+#     status_display = serializers.CharField(read_only=True)
+#     can_be_selected = serializers.BooleanField(read_only=True)
+#     tags_count = serializers.SerializerMethodField()
+#     allocations_count = serializers.SerializerMethodField()
+    
+#     class Meta:
+#         model = models.Project
+#         fields = [
+#             'id', 'title', 'company', 'is_active', 'visible', 
+#             'status_display', 'can_be_selected', 'created_at', 
+#             'updated_at', 'tags_count', 'allocations_count'
+#         ]
+#         read_only_fields = ['id', 'created_at', 'updated_at']
+    
+#     def get_tags_count(self, obj):
+#         """Get number of tags for this project"""
+#         return obj.tags.count()
+    
+#     def get_allocations_count(self, obj):
+#         """Get number of user allocations for this project"""
+#         return obj.allocations.count()
 
-class ProjectStatusDetailSerializer(serializers.ModelSerializer):
-    """
-    Detailed serializer for project status with additional context.
-    Used in admin and detailed status views.
-    """
-    status_display = serializers.CharField(read_only=True)
-    can_be_selected = serializers.BooleanField(read_only=True)
+class ProjectStatusDetailSerializer(ProjectStatusSerializer):
     tags_count = serializers.SerializerMethodField()
     allocations_count = serializers.SerializerMethodField()
-    
-    class Meta:
-        model = models.Project
-        fields = [
-            'id', 'title', 'company', 'is_active', 'visible', 
-            'status_display', 'can_be_selected', 'created_at', 
-            'updated_at', 'tags_count', 'allocations_count'
+    class Meta(ProjectStatusSerializer.Meta):
+        fields = ProjectStatusSerializer.Meta.fields + [
+            "created_at", "updated_at", "tags_count", "allocations_count"
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at']
-    
-    def get_tags_count(self, obj):
-        """Get number of tags for this project"""
-        return obj.tags.count()
-    
-    def get_allocations_count(self, obj):
-        """Get number of user allocations for this project"""
-        return obj.allocations.count()
+    def get_tags_count(self, obj): return obj.tags.count()
+    def get_allocations_count(self, obj): return obj.allocations.count()

@@ -107,14 +107,36 @@ class SingleProjectStatusView(APIView):
     schema = TaggedAutoSchema(tags=["Project Status"])
     permission_classes = [IsAdminOrReadOnlyPermission]
 
+    def post(self, request, project_id):
+        project = get_object_or_404(models.Project, id=project_id)
+        is_active = bool(request.data.get("is_active"))
+        reason = (request.data.get("reason") or "").strip()
+        admin_message = request.data.get("admin_message")
+
+        if is_active:
+            project.activate()
+        else:
+            project.deactivate()
+            project.deactivation_reason = reason[:200]
+
+        if admin_message is not None:
+            project.admin_message = admin_message
+
+        project.save(update_fields=["is_active", "deactivation_reason", "admin_message"])
+
+        cache.delete("project_status_stats")
+        ser = status_serializers.ProjectStatusDetailSerializer(project)
+        return Response(
+            {"message": ("فعال‌سازی" if is_active else "غیرفعال‌سازی") + " پروژه انجام شد", "project": ser.data},
+            status=status.HTTP_200_OK,
+        )
+    
     def get(self, request, project_id, *args, **kwargs):
-        """Get single project status"""
         project = get_object_or_404(models.Project, id=project_id)
         serializer = status_serializers.ProjectStatusDetailSerializer(project)
         return Response(serializer.data)
 
     def patch(self, request, project_id, *args, **kwargs):
-        """Toggle single project activation status"""
         project = get_object_or_404(models.Project, id=project_id)
         new_status = not project.is_active
         reason = request.data.get('reason', '')

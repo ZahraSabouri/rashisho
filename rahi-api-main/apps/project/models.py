@@ -171,11 +171,6 @@ class ProjectSelection(BaseModel):
 
 
 class ProjectAttractiveness(BaseModel):
-    """
-    One row == one user's 'heart' on one project.
-    - Users may heart multiple projects
-    - A user can only heart a project once
-    """
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -202,7 +197,7 @@ class Project(BaseModel):
     code = models.CharField(max_length=300, unique=True, null=True, verbose_name="کد")
     title = models.CharField(max_length=300, verbose_name="عنوان")
     summary = models.TextField(
-        max_length=200,  # Approximately 2 lines of text
+        max_length=200,
         blank=True,
         null=True,
         verbose_name="خلاصه پروژه",
@@ -259,6 +254,16 @@ class Project(BaseModel):
         verbose_name="گروه‌های کاربری مرتبط",
         help_text="فقط کاربران این گروه‌ها می‌توانند پروژه را ببینند/انتخاب کنند. خالی یعنی همه گروه‌ها.",
     )
+    deactivation_reason = models.CharField(
+        max_length=200, blank=True,
+        verbose_name="علت غیرفعالسازی",
+        help_text="دلیل کوتاه که در صفحه پروژه نمایش داده می‌شود وقتی پروژه غیرفعال است."
+    )
+    admin_message = models.TextField(
+        blank=True,
+        verbose_name="پیام ادمین برای صفحه پروژه",
+        help_text="پیام اختیاری که روی صفحه پروژه نمایش داده می‌شود."
+    )
 
     @property
     def current_phase(self):
@@ -281,22 +286,27 @@ class Project(BaseModel):
 
     @property
     def show_attractiveness(self):
-        """Should attractiveness count be shown?"""
-        return self.current_phase in [ProjectPhase.SELECTION_ACTIVE, ProjectPhase.SELECTION_FINISHED]
+        return self.current_phase == ProjectPhase.SELECTION_FINISHED
+        # return self.current_phase in [ProjectPhase.SELECTION_ACTIVE, ProjectPhase.SELECTION_FINISHED]
+
+    def deactivate(self):
+        self.is_active = False
+        self.save(update_fields=["is_active"])
+
+    def activate(self):
+        self.is_active = True
+        # Keep admin_message (it’s independent), clear reason
+        self.deactivation_reason = ""
+        self.save(update_fields=["is_active", "deactivation_reason"])
 
     @property
     def phase_display(self):
-        """Human readable phase status"""
         phase = self.current_phase
         if self.auto_phase_transition and self.selection_start and self.selection_end:
             return f"{ProjectPhase(phase).label} (خودکار)"
         return ProjectPhase(phase).label
 
     def update_phase_if_needed(self):
-        """
-        Update the database phase if auto-transition is enabled and phase changed.
-        Call this periodically or in views to keep DB in sync.
-        """
         if self.auto_phase_transition:
             current = self.current_phase
             if current != self.selection_phase:
@@ -305,7 +315,6 @@ class Project(BaseModel):
 
     @property
     def comments_count(self):
-        """تعداد نظرات تایید شده این پروژه"""
         try:
             from apps.comments.utils import get_comment_count
             return get_comment_count('project.project', self.id)
@@ -314,7 +323,6 @@ class Project(BaseModel):
 
     @property
     def pending_comments_count(self):
-        """تعداد نظرات در انتظار تایید این پروژه"""
         try:
             from apps.comments.utils import get_comment_count
             return get_comment_count('project.project', self.id, 'PENDING')
@@ -322,7 +330,6 @@ class Project(BaseModel):
             return 0
 
     def get_comments(self, status='APPROVED', limit=None):
-        """دریافت نظرات این پروژه"""
         try:
             from apps.comments.services import ProjectCommentService
             comments = ProjectCommentService.get_project_comments(self.id)
@@ -333,11 +340,9 @@ class Project(BaseModel):
             return []
 
     def get_latest_comments(self, limit=5):
-        """دریافت آخرین نظرات این پروژه"""
         return self.get_comments(limit=limit)
 
     def get_comment_statistics(self):
-        """دریافت آمار نظرات این پروژه"""
         try:
             from apps.comments.services import ProjectCommentService
             return ProjectCommentService.get_project_comment_summary(self.id)

@@ -13,12 +13,16 @@ class ProjectAnnotatedListSerializer(serializers.ModelSerializer):
 
     relatability = serializers.SerializerMethodField()
 
+    admin_message = serializers.CharField(read_only=True)
+    deactivation_reason = serializers.CharField(read_only=True)
+
     class Meta:
         model = Project
         fields = [
             "id", "title", "summary", "code", "company", "leader",
             "tags_count", "allocations_count", "attractiveness",
-            "current_phase", "can_be_selected", "relatability"
+            "current_phase", "can_be_selected", "relatability",
+            "admin_message","deactivation_reason",
         ]
 
     def get_attractiveness(self, obj):

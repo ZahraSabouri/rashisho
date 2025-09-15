@@ -58,19 +58,17 @@ class ProjectViewSet(ModelViewSet):
 
     @action(detail=False, methods=["get"], url_path="annotated", permission_classes=[AllowAny])
     def annotated(self, request):
-        qs = (
-            Project.objects.filter(visible=True, is_active=True)
-            .prefetch_related("tags", "study_fields")
-            .annotate(
-                tags_count=Count("tags", distinct=True),
-                allocations_count=Count("allocations", distinct=True),
-            )
-        )
+        qs = (Project.objects.filter(visible=True, is_active=True)
+              .prefetch_related("tags", "study_fields")
+              .annotate(tags_count=Count("tags", distinct=True),
+                        allocations_count=Count("allocations", distinct=True)))
 
-        # Get applied filters info
         applied_filters = self._get_applied_filters(request.GET)
 
-        ordering = request.GET.get("ordering") or "-created_at"
+        ordering = request.GET.get("ordering")
+        if not ordering:
+            ordering = "-relatability" if request.user.is_authenticated else "-created_at"
+
         qs = qs.order_by(ordering)
 
         if request.user.is_authenticated and ordering in ("relatability", "-relatability"):
@@ -81,15 +79,12 @@ class ProjectViewSet(ModelViewSet):
             scored.sort(key=lambda x: x[0], reverse=reverse)
             qs = [p for _, p in scored]
 
-        # Pagination consistent with your project style
         paginator = Pagination()
         page = paginator.paginate_queryset(qs, request)
         ser = ProjectAnnotatedListSerializer(page, many=True, context={"request": request})
 
-        # Get filter and sorting metadata
         filter_metadata = self._get_filter_metadata(request)
 
-        # Enhance paginated response with metadata
         response_data = paginator.get_paginated_response(ser.data).data
         response_data.update({
             'filters': filter_metadata,
@@ -127,11 +122,6 @@ class ProjectViewSet(ModelViewSet):
 
     @action(detail=True, methods=["post"], url_path="attractiveness/toggle", permission_classes=[IsAuthenticated])
     def toggle_attractiveness(self, request, pk=None):
-        """
-        Toggle user's 'attractiveness' (heart) on this project.
-        - Allowed ONLY while the project can be selected (SELECTION_ACTIVE).
-        - After selection is finished, we lock the count (no like/unlike).
-        """
         from apps.project.models import ProjectAttractiveness
         from apps.project.services import can_select_projects, count_project_attractiveness
 
@@ -154,7 +144,6 @@ class ProjectViewSet(ModelViewSet):
 
         count = count_project_attractiveness(project.id)
 
-        # keep keys the same to avoid frontend changes
         return Response({
             "project_id": str(project.id),
             "attractiveness": count,
@@ -162,7 +151,6 @@ class ProjectViewSet(ModelViewSet):
         }, status=status.HTTP_200_OK)
 
     def _get_applied_filters(self, query_params):
-        """Extract information about currently applied filters"""
         applied = []
 
         filter_mappings = {
@@ -187,7 +175,6 @@ class ProjectViewSet(ModelViewSet):
         return applied
 
     def _format_filter_display_value(self, param, value):
-        """Format filter values for display"""
         if param == 'study_fields':
             try:
                 from apps.settings.models import StudyField
@@ -224,23 +211,19 @@ class ProjectViewSet(ModelViewSet):
         return value
 
     def _get_filter_metadata(self, request):
-        """Get metadata about available filters and their options"""
         from apps.settings.models import StudyField
         from apps.project.models import Tag
 
-        # Get available study fields (only those used in projects)
         available_study_fields = StudyField.objects.filter(
             project__visible=True,
             project__is_active=True
         ).distinct().values('id', 'title')
 
-        # Get available tags by category
         available_tags = Tag.objects.filter(
             projects__visible=True,
             projects__is_active=True
         ).distinct().values('id', 'name', 'category')
 
-        # Group tags by category
         tags_by_category = {}
         for tag in available_tags:
             category = tag['category']
@@ -251,7 +234,6 @@ class ProjectViewSet(ModelViewSet):
                 'name': tag['name']
             })
 
-        # Get popular companies (for suggestions)
         from django.db.models import Count
         popular_companies = Project.objects.filter(
             visible=True,
