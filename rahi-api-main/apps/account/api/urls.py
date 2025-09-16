@@ -32,4 +32,6 @@ urlpatterns = [
     path("messages/conversation/", messages.ConversationListAV.as_view(), name="dm-conversation"),
     path("messages/mark-read/", messages.MarkReadAV.as_view(), name="dm-mark-read"),
     path("messages/unread-count/", messages.UnreadCountAV.as_view(), name="dm-unread-count"),
+    path("users/<uuid:id>/messages/chats/", messages.UserChatsAV.as_view(), name="dm-user-chats"),
+
 ]

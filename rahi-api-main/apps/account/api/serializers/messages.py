@@ -20,3 +20,17 @@ class DirectMessageOutSer(serializers.ModelSerializer):
     class Meta:
         model = DirectMessage
         fields = ["id", "sender", "receiver", "body", "is_read", "created_at"]
+
+
+class PeerBriefSerializer(serializers.Serializer):
+    id = serializers.UUIDField()
+    full_name = serializers.CharField(allow_null=True)
+    avatar = serializers.CharField(allow_null=True)
+
+
+class ChatThreadOutSer(serializers.Serializer):
+    peer = PeerBriefSerializer()
+    total_messages = serializers.IntegerField()
+    unread = serializers.IntegerField()
+    last_message = DirectMessageOutSer()
+    messages = DirectMessageOutSer(many=True)
