@@ -826,6 +826,48 @@ class Team(BaseModel):
         
         return leave_requests.count() == member_requests.count()
 
+    def get_latest_chat_messages(self, limit=10):
+        return self.chat_messages.select_related('user').order_by('-created_at')[:limit]
+
+    def get_active_meeting_links(self):
+        return self.online_meetings.filter(is_active=True).order_by('-created_at')
+
+    def get_pending_unstable_tasks(self):
+        return self.unstable_tasks.filter(is_completed=False).order_by('due_date')
+
+    def get_team_member_details(self):
+        from apps.account.models import Resume
+        
+        members = []
+        active_memberships = self.requests.filter(status='A', request_type='JOIN').select_related('user')
+        
+        for membership in active_memberships:
+            user = membership.user
+            resume = getattr(user, 'resume', None)
+            
+            # Get latest education
+            latest_education = None
+            if resume:
+                latest_education = resume.educations.order_by('-graduation_year').first()
+            
+            member_info = {
+                'id': user.id,
+                'full_name': user.full_name,
+                'avatar': user.avatar.url if user.avatar else None,
+                'role': membership.get_user_role_display(),
+                'role_code': membership.user_role,
+                'is_leader': membership.user_role == 'C',
+                'is_deputy': membership.user_role == 'D',
+                'latest_education': {
+                    'degree_level': latest_education.degree_level if latest_education else None,
+                    'field_of_study': latest_education.field_of_study if latest_education else None,
+                    'university': latest_education.university if latest_education else None,
+                } if latest_education else None,
+                'joined_at': membership.created_at
+            }
+            members.append(member_info)
+        
+        return members
 
 
 class ProvinceExtension:
@@ -975,3 +1017,94 @@ class TeamBuildingVideoButton(BaseModel):
     
     def __str__(self):
         return f"{self.announcement.title} - {self.title}"
+
+
+class TeamChatMessage(BaseModel):
+    team = models.ForeignKey(
+        'Team', 
+        on_delete=models.CASCADE, 
+        related_name='chat_messages',
+        verbose_name="تیم"
+    )
+    user = models.ForeignKey(
+        get_user_model(), 
+        on_delete=models.CASCADE,
+        related_name='team_messages',
+        verbose_name="کاربر"
+    )
+    message = models.TextField(verbose_name="پیام")
+    is_edited = models.BooleanField(default=False, verbose_name="ویرایش شده")
+    edited_at = models.DateTimeField(null=True, blank=True, verbose_name="زمان ویرایش")
+    
+    class Meta(BaseModel.Meta):
+        verbose_name = "پیام چت تیم"
+        verbose_name_plural = "پیام‌های چت تیم"
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"{self.user.full_name} در {self.team.title}: {self.message[:50]}..."
+
+
+class TeamOnlineMeeting(BaseModel):
+    team = models.ForeignKey(
+        'Team', 
+        on_delete=models.CASCADE, 
+        related_name='online_meetings',
+        verbose_name="تیم"
+    )
+    title = models.CharField(max_length=200, verbose_name="عنوان جلسه")
+    meeting_url = models.URLField(verbose_name="لینک جلسه آنلاین")
+    description = models.TextField(blank=True, verbose_name="توضیحات")
+    scheduled_for = models.DateTimeField(null=True, blank=True, verbose_name="زمان برنامه‌ریزی شده")
+    is_active = models.BooleanField(default=True, verbose_name="فعال")
+    created_by = models.ForeignKey(
+        get_user_model(),
+        on_delete=models.SET_NULL,
+        null=True,
+        verbose_name="ایجاد شده توسط"
+    )
+    
+    class Meta(BaseModel.Meta):
+        verbose_name = "جلسه آنلاین تیم"
+        verbose_name_plural = "جلسات آنلاین تیم"
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"{self.team.title}: {self.title}"
+
+
+class TeamUnstableTask(BaseModel):
+    team = models.ForeignKey(
+        'Team', 
+        on_delete=models.CASCADE, 
+        related_name='unstable_tasks',
+        verbose_name="تیم"
+    )
+    title = models.CharField(max_length=200, verbose_name="عنوان کار")
+    description = models.TextField(verbose_name="توضیحات")
+    file = models.FileField(
+        upload_to='team_unstable_files/', 
+        blank=True, 
+        null=True,
+        verbose_name="فایل"
+    )
+    assigned_to = models.ForeignKey(
+        get_user_model(),
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        verbose_name="واگذار شده به"
+    )
+    due_date = models.DateField(null=True, blank=True, verbose_name="مهلت انجام")
+    is_completed = models.BooleanField(default=False, verbose_name="تکمیل شده")
+    completed_at = models.DateTimeField(null=True, blank=True, verbose_name="زمان تکمیل")
+    
+    class Meta(BaseModel.Meta):
+        verbose_name = "کار بخش ناپایدار"
+        verbose_name_plural = "کارهای بخش ناپایدار"
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"{self.team.title}: {self.title}"
+
+

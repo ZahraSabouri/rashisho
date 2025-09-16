@@ -38,6 +38,12 @@ class Resume(BaseModel):
         verbose_name="استان محل تشکیل تیم",
         help_text="استان محل سکونت/کار برای تشکیل تیم. این فیلد برای برنامه‌ریزی جلسات حضوری استانی استفاده می‌شود."
     )
+    manual_role_tags = models.JSONField(
+        default=list,
+        blank=True,
+        verbose_name="برچسب‌های نقش دستی",
+        help_text="برچسب‌های نقش تیمی که کاربر به صورت دستی انتخاب کرده (حداکثر 4 مورد)"
+    )
 
     @property
     def resume_completed(self):
@@ -76,6 +82,56 @@ class Resume(BaseModel):
         self.steps[LAST_STEP][sub_step] = "finished"
         self.save()
 
+    def get_role_tags(self, max_tags=4):
+        # If manual tags are set, use them
+        if self.manual_role_tags:
+            return self.manual_role_tags[:max_tags]
+        
+        # Otherwise try to auto-generate from Belbin
+        try:
+            from apps.exam.models import UserAnswer
+            user_answer = UserAnswer.objects.get(user=self.user)
+            belbin_data = user_answer.belbin_answer
+            
+            if belbin_data and belbin_data.get('status') == 'finished':
+                # Auto-generate logic here (same as in serializer)
+                return self._generate_belbin_role_tags(belbin_data, max_tags)
+        except:
+            pass
+            
+        return []
+
+    def _generate_belbin_role_tags(self, belbin_data, max_tags=4):
+        """Generate role tags from Belbin data"""
+        BELBIN_ROLE_MAPPING = {
+            'Plant': 'PL',
+            'Resource Investigator': 'RI', 
+            'Coordinator': 'CO',
+            'Shaper': 'SH',
+            'Monitor Evaluator': 'ME',
+            'Teamworker': 'TW',
+            'Implementer': 'IM',
+            'Completer Finisher': 'CF',
+            'Specialist': 'SP'
+        }
+        
+        belbin_results = belbin_data.get('belbin', {})
+        role_scores = []
+        
+        for role, short_code in BELBIN_ROLE_MAPPING.items():
+            score = belbin_results.get(role, 0)
+            if isinstance(score, (int, float)) and score > 0:
+                role_scores.append({
+                    'code': short_code,
+                    'name': role,
+                    'score': score,
+                    'source': 'auto'
+                })
+        
+        # Sort by score and return top tags
+        role_scores.sort(key=lambda x: x['score'], reverse=True)
+        return role_scores[:max_tags]
+    
     def __str__(self):
         return str(self.user)
 

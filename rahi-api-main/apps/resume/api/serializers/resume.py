@@ -13,6 +13,8 @@ class ResumeSerializer(serializers.ModelSerializer):
     certificates = certificate.CertificateSerializer(many=True, read_only=True)
     connections = connection.ConnectionSerializer(many=True, read_only=True)
 
+    team_formation_province = serializers.SerializerMethodField()
+
     class Meta:
         model = models.Resume
         fields = [
@@ -27,8 +29,18 @@ class ResumeSerializer(serializers.ModelSerializer):
             "connections",
             "steps",
             "resume_completed",
+            "team_formation_province"
         ]
         read_only_fields = ["user", "steps", "resume_completed"]
+
+    def get_team_formation_province(self, instance: models.Resume):
+        if instance.team_formation_province:
+            return {
+                'id': instance.team_formation_province.id,
+                'title': instance.team_formation_province.title,
+                'phone_code': getattr(instance.team_formation_province, 'phone_code', None)
+            }
+        return None
 
     def to_representation(self, instance: models.Resume):
         result = super().to_representation(instance)

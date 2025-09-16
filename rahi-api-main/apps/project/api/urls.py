@@ -7,7 +7,12 @@ from apps.project.api.views.team_invitations import TeamInvitationViewSet, FreeP
 from apps.project.api.views.team_discovery import TeamDiscoveryViewSet, TeamPageView
 from apps.project.api.views.team_announcements import TeamBuildingAnnouncementsView, TeamBuildingRulesView
 from apps.project.api.views.team_deputy_management import TeamDeputyManagementViewSet
-
+from apps.project.api.views.team_page import (
+    TeamPageView, TeamChatViewSet, TeamMeetingViewSet, TeamTaskViewSet
+)
+from apps.project.api.views.team_admin import (
+    EnhancedTeamReportView, TeamBulkImportView, TeamAdminManagementViewSet
+)
 from apps.project import reports
 from apps.project.api.views import project, tag, project_status, attraction #, team
 
@@ -64,60 +69,149 @@ urlpatterns = [
 
     path('team-building/', include([
             
-            # === STEP 1: Team Request Management ===
-            
-            # Leave team requests
-            path('requests/leave/', TeamRequestViewSet.as_view({'post': 'request_leave_team'}), name='request-leave'),
-            path('requests/cancel-leave/', TeamRequestViewSet.as_view({'post': 'cancel_leave_request'}), name='cancel-leave'),
-            path('requests/approve-leave/', TeamRequestViewSet.as_view({'post': 'approve_leave_request'}), name='approve-leave'),
-            
-            # Team dissolution
-            path('dissolve/', TeamRequestViewSet.as_view({'post': 'request_team_dissolution'}), name='dissolve-team'),
-            path('cancel-dissolution/', TeamRequestViewSet.as_view({'post': 'cancel_team_dissolution'}), name='cancel-dissolution'),
-            
-            # Request management
-            path('my-requests/', TeamRequestViewSet.as_view({'get': 'get_my_requests'}), name='my-requests'),
-            path('my-team/', TeamEnhancedViewSet.as_view({'get': 'get_my_team'}), name='my-team'),
-            
-            # === STEP 2: Invitations & Discovery ===
-            
-            # Team invitations
-            path('invite-user/', TeamInvitationViewSet.as_view({'post': 'invite_user_to_team'}), name='invite-user'),
-            path('propose-team/', TeamInvitationViewSet.as_view({'post': 'propose_team_formation'}), name='propose-team'),
-            path('respond-invitation/', TeamInvitationViewSet.as_view({'post': 'respond_to_invitation'}), name='respond-invitation'),
-            path('my-invitations/', TeamInvitationViewSet.as_view({'get': 'get_my_invitations'}), name='my-invitations'),
-            
-            # Free participants discovery
-            path('free-participants/', FreeParticipantsViewSet.as_view({'get': 'list'}), name='free-participants-list'),
-            path('free-participants/filters/', FreeParticipantsViewSet.as_view({'get': 'get_available_filters'}), name='free-participants-filters'),
-            path('free-participants/actions/', FreeParticipantsViewSet.as_view({'get': 'get_user_actions'}), name='free-participants-actions'),
-            
-            # Team discovery
-            path('discovery/', TeamDiscoveryViewSet.as_view({'get': 'list'}), name='team-discovery'),
-            path('discovery/formed/', TeamDiscoveryViewSet.as_view({'get': 'get_formed_teams'}), name='formed-teams'),
-            path('discovery/forming/', TeamDiscoveryViewSet.as_view({'get': 'get_forming_teams'}), name='forming-teams'),
-            path('discovery/filters/', TeamDiscoveryViewSet.as_view({'get': 'get_available_filters'}), name='discovery-filters'),
-            path('discovery/by-province/', TeamDiscoveryViewSet.as_view({'get': 'get_teams_by_province'}), name='teams-by-province'),
-            
-            # Team page
-            path('team/<uuid:team_id>/', TeamPageView.as_view(), name='team-page'),
-            path('team/<uuid:team_id>/join-options/', TeamDiscoveryViewSet.as_view({'get': 'get_team_join_options'}), name='team-join-options'),
-            
-            # === STEP 3: Announcements and Rules ===
-            
-            # Team building announcements
-            path('announcements/', TeamBuildingAnnouncementsView.as_view(), name='team-announcements'),
-            path('rules/', TeamBuildingRulesView.as_view(), name='team-rules'),
+        # === STEP 1: Team Request Management ===
+        
+        # Leave team requests
+        path('requests/leave/', TeamRequestViewSet.as_view({'post': 'request_leave_team'}), name='request-leave'),
+        path('requests/cancel-leave/', TeamRequestViewSet.as_view({'post': 'cancel_leave_request'}), name='cancel-leave'),
+        path('requests/approve-leave/', TeamRequestViewSet.as_view({'post': 'approve_leave_request'}), name='approve-leave'),
+        
+        # Team dissolution
+        path('dissolve/', TeamRequestViewSet.as_view({'post': 'request_team_dissolution'}), name='dissolve-team'),
+        path('cancel-dissolution/', TeamRequestViewSet.as_view({'post': 'cancel_team_dissolution'}), name='cancel-dissolution'),
+        
+        # Request management
+        path('my-requests/', TeamRequestViewSet.as_view({'get': 'get_my_requests'}), name='my-requests'),
+        path('my-team/', TeamEnhancedViewSet.as_view({'get': 'get_my_team'}), name='my-team'),
+        
+        # === STEP 2: Invitations & Discovery ===
+        
+        # Team invitations
+        path('invite-user/', TeamInvitationViewSet.as_view({'post': 'invite_user_to_team'}), name='invite-user'),
+        path('propose-team/', TeamInvitationViewSet.as_view({'post': 'propose_team_formation'}), name='propose-team'),
+        path('respond-invitation/', TeamInvitationViewSet.as_view({'post': 'respond_to_invitation'}), name='respond-invitation'),
+        path('my-invitations/', TeamInvitationViewSet.as_view({'get': 'get_my_invitations'}), name='my-invitations'),
+        
+        # Free participants discovery
+        path('free-participants/', FreeParticipantsViewSet.as_view({'get': 'list'}), name='free-participants-list'),
+        path('free-participants/filters/', FreeParticipantsViewSet.as_view({'get': 'get_available_filters'}), name='free-participants-filters'),
+        path('free-participants/actions/', FreeParticipantsViewSet.as_view({'get': 'get_user_actions'}), name='free-participants-actions'),
+        
+        # Team discovery
+        path('discovery/', TeamDiscoveryViewSet.as_view({'get': 'list'}), name='team-discovery'),
+        path('discovery/formed/', TeamDiscoveryViewSet.as_view({'get': 'get_formed_teams'}), name='formed-teams'),
+        path('discovery/forming/', TeamDiscoveryViewSet.as_view({'get': 'get_forming_teams'}), name='forming-teams'),
+        path('discovery/filters/', TeamDiscoveryViewSet.as_view({'get': 'get_available_filters'}), name='discovery-filters'),
+        path('discovery/by-province/', TeamDiscoveryViewSet.as_view({'get': 'get_teams_by_province'}), name='teams-by-province'),
+        
+        # Team page
+        path('team/<uuid:team_id>/', TeamPageView.as_view(), name='team-page'),
+        path('team/<uuid:team_id>/join-options/', TeamDiscoveryViewSet.as_view({'get': 'get_team_join_options'}), name='team-join-options'),
+        
+        # === STEP 3: Announcements and Rules ===
+        
+        # Team building announcements
+        path('announcements/', TeamBuildingAnnouncementsView.as_view(), name='team-announcements'),
+        path('rules/', TeamBuildingRulesView.as_view(), name='team-rules'),
 
 
-            # === NEW: DEPUTY MANAGEMENT ENDPOINTS ===
-            path('deputy/promote/', TeamRequestViewSet.as_view({'post': 'promote_member_to_deputy'}), name='promote-deputy'),
-            path('deputy/demote/', TeamRequestViewSet.as_view({'post': 'demote_deputy_to_member'}), name='demote-deputy'),
-            path('leadership-info/', TeamRequestViewSet.as_view({'get': 'get_leadership_info'}), name='leadership-info'),
-            
-            # Team dissolution
-            path('dissolve/', TeamRequestViewSet.as_view({'post': 'request_team_dissolution'}), name='dissolve-team'),
-            path('cancel-dissolution/', TeamRequestViewSet.as_view({'post': 'cancel_team_dissolution'}), name='cancel-dissolution'),
-            
-            ])),
+        # === NEW: DEPUTY MANAGEMENT ENDPOINTS ===
+        path('deputy/promote/', TeamRequestViewSet.as_view({'post': 'promote_member_to_deputy'}), name='promote-deputy'),
+        path('deputy/demote/', TeamRequestViewSet.as_view({'post': 'demote_deputy_to_member'}), name='demote-deputy'),
+        path('leadership-info/', TeamRequestViewSet.as_view({'get': 'get_leadership_info'}), name='leadership-info'),
+        
+        # Team dissolution
+        path('dissolve/', TeamRequestViewSet.as_view({'post': 'request_team_dissolution'}), name='dissolve-team'),
+        path('cancel-dissolution/', TeamRequestViewSet.as_view({'post': 'cancel_team_dissolution'}), name='cancel-dissolution'),
+
+    
+        # === TEAM PAGE FUNCTIONALITY ===
+        
+        # Complete team page view
+        # Team chat endpoints
+        path('team/<uuid:team_id>/chat/', TeamChatViewSet.as_view({
+                'get': 'list',
+                'post': 'create'
+        }), name='team-chat'),
+        
+        path('team/<uuid:team_id>/chat/<int:pk>/', TeamChatViewSet.as_view({
+                'get': 'retrieve',
+                'put': 'update',
+                'patch': 'partial_update',
+                'delete': 'destroy'
+        }), name='team-chat-detail'),
+        
+        path('team/<uuid:team_id>/chat/history/', TeamChatViewSet.as_view({
+                'get': 'get_chat_history'
+        }), name='team-chat-history'),
+        
+        # Team online meetings endpoints (admin managed)
+        path('team/<uuid:team_id>/meetings/', TeamMeetingViewSet.as_view({
+                'get': 'list',
+                'post': 'create'
+        }), name='team-meetings'),
+        
+        path('team/<uuid:team_id>/meetings/<int:pk>/', TeamMeetingViewSet.as_view({
+                'get': 'retrieve',
+                'put': 'update',
+                'patch': 'partial_update',
+                'delete': 'destroy'
+        }), name='team-meeting-detail'),
+        
+        # Team unstable tasks endpoints  
+        path('team/<uuid:team_id>/tasks/', TeamTaskViewSet.as_view({
+                'get': 'list',
+                'post': 'create'
+        }), name='team-tasks'),
+        
+        path('team/<uuid:team_id>/tasks/<int:pk>/', TeamTaskViewSet.as_view({
+                'get': 'retrieve',
+                'put': 'update',
+                'patch': 'partial_update',
+                'delete': 'destroy'
+        }), name='team-task-detail'),
+        
+        path('team/<uuid:team_id>/tasks/<int:pk>/mark-complete/', TeamTaskViewSet.as_view({
+                'post': 'mark_complete'
+        }), name='team-task-complete'),
+
+
+        # === ENHANCED TEAM ADMIN ENDPOINTS (Step 3) ===
+
+        # Enhanced team export with filtering
+        path('team-report-enhanced/', EnhancedTeamReportView.as_view(), name='enhanced-team-report'),
+
+        # Excel import functionality  
+        path('team-bulk-import/', TeamBulkImportView.as_view(), name='team-bulk-import'),
+
+        # Advanced team management
+        path('admin/teams/', TeamAdminManagementViewSet.as_view({
+        'get': 'list',
+        'post': 'create'
+        }), name='admin-teams'),
+
+        path('admin/teams/<uuid:pk>/', TeamAdminManagementViewSet.as_view({
+        'get': 'retrieve', 
+        'put': 'update',
+        'patch': 'partial_update',
+        'delete': 'destroy'
+        }), name='admin-team-detail'),
+
+        path('admin/teams/<uuid:pk>/add-member/', TeamAdminManagementViewSet.as_view({
+        'post': 'add_member'
+        }), name='admin-team-add-member'),
+
+        path('admin/teams/<uuid:pk>/remove-member/', TeamAdminManagementViewSet.as_view({
+        'post': 'remove_member' 
+        }), name='admin-team-remove-member'),
+
+        path('admin/teams/<uuid:pk>/change-leader/', TeamAdminManagementViewSet.as_view({
+        'post': 'change_leader'
+        }), name='admin-team-change-leader'),
+
+        path('admin/teams/statistics/', TeamAdminManagementViewSet.as_view({
+        'get': 'get_statistics'
+        }), name='admin-team-statistics'),
+
+        ])),
     ]

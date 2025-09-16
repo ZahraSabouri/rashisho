@@ -9,6 +9,9 @@ from django.utils.safestring import mark_safe
 from apps.project import models
 
 from apps.project.models import ProjectAttractiveness
+from apps.project.models import (
+    TeamChatMessage, TeamOnlineMeeting, TeamUnstableTask
+)
 
 @admin.register(models.TagCategory)
 class TagCategoryAdmin(admin.ModelAdmin):
@@ -296,8 +299,214 @@ class ProjectAllocationAdmin(admin.ModelAdmin):
         return queryset, use_distinct
 
 
+@admin.register(TeamChatMessage)
+class TeamChatMessageAdmin(admin.ModelAdmin):
+    """Admin interface for team chat messages"""
+    list_display = [
+        'team_link', 'user_name', 'message_preview', 
+        'created_at', 'is_edited', 'edited_at'
+    ]
+    list_filter = [
+        'team__team_building_stage', 'is_edited', 'created_at',
+        'team__project'
+    ]
+    search_fields = [
+        'team__title', 'team__team_code', 'user__full_name', 
+        'user__user_info__mobile_number', 'message'
+    ]
+    readonly_fields = ['created_at', 'updated_at']
+    raw_id_fields = ['team', 'user']
+    date_hierarchy = 'created_at'
+    
+    def team_link(self, obj):
+        url = reverse('admin:project_team_change', args=[obj.team.id])
+        return format_html('<a href="{}">{} ({})</a>', 
+                         url, obj.team.title, obj.team.team_code)
+    team_link.short_description = 'تیم'
+    team_link.admin_order_field = 'team__title'
+    
+    def user_name(self, obj):
+        return obj.user.full_name
+    user_name.short_description = 'کاربر'
+    user_name.admin_order_field = 'user__full_name'
+    
+    def message_preview(self, obj):
+        preview = obj.message[:100] + '...' if len(obj.message) > 100 else obj.message
+        if obj.is_edited:
+            return format_html('<span style="color: orange;">{} <em>(ویرایش شده)</em></span>', preview)
+        return preview
+    message_preview.short_description = 'پیام'
+    
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related('team', 'user')
+
+
+@admin.register(TeamOnlineMeeting)
+class TeamOnlineMeetingAdmin(admin.ModelAdmin):
+    """Admin interface for team online meetings"""
+    list_display = [
+        'team_link', 'title', 'meeting_link_preview', 
+        'scheduled_for', 'is_active', 'created_by_name', 'created_at'
+    ]
+    list_filter = [
+        'is_active', 'team__team_building_stage', 'scheduled_for', 
+        'created_at', 'team__project'
+    ]
+    search_fields = [
+        'team__title', 'team__team_code', 'title', 
+        'description', 'created_by__full_name'
+    ]
+    readonly_fields = ['created_at', 'updated_at']
+    raw_id_fields = ['team', 'created_by']
+    date_hierarchy = 'created_at'
+    
+    fieldsets = (
+        ('اطلاعات جلسه', {
+            'fields': ('team', 'title', 'description')
+        }),
+        ('تنظیمات جلسه', {
+            'fields': ('meeting_url', 'scheduled_for', 'is_active')
+        }),
+        ('اطلاعات سیستمی', {
+            'fields': ('created_by', 'created_at', 'updated_at'),
+            'classes': ('collapse',)
+        })
+    )
+    
+    def team_link(self, obj):
+        url = reverse('admin:project_team_change', args=[obj.team.id])
+        return format_html('<a href="{}">{} ({})</a>', 
+                         url, obj.team.title, obj.team.team_code)
+    team_link.short_description = 'تیم'
+    team_link.admin_order_field = 'team__title'
+    
+    def meeting_link_preview(self, obj):
+        if obj.meeting_url:
+            return format_html('<a href="{}" target="_blank">🔗 لینک جلسه</a>', obj.meeting_url)
+        return '-'
+    meeting_link_preview.short_description = 'لینک'
+    
+    def created_by_name(self, obj):
+        return obj.created_by.full_name if obj.created_by else '-'
+    created_by_name.short_description = 'ایجاد شده توسط'
+    created_by_name.admin_order_field = 'created_by__full_name'
+    
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related('team', 'created_by')
+    
+    def save_model(self, request, obj, form, change):
+        if not change:  # New object
+            obj.created_by = request.user
+        super().save_model(request, obj, form, change)
+
+
+@admin.register(TeamUnstableTask)
+class TeamUnstableTaskAdmin(admin.ModelAdmin):
+    """Admin interface for team unstable tasks"""
+    list_display = [
+        'team_link', 'title', 'assigned_to_name', 'due_date', 
+        'completion_status', 'created_at'
+    ]
+    list_filter = [
+        'is_completed', 'team__team_building_stage', 'due_date',
+        'created_at', 'team__project'
+    ]
+    search_fields = [
+        'team__title', 'team__team_code', 'title', 'description',
+        'assigned_to__full_name'
+    ]
+    readonly_fields = ['created_at', 'updated_at', 'completed_at']
+    raw_id_fields = ['team', 'assigned_to']
+    date_hierarchy = 'created_at'
+    
+    fieldsets = (
+        ('اطلاعات کار', {
+            'fields': ('team', 'title', 'description', 'file')
+        }),
+        ('واگذاری و مهلت', {
+            'fields': ('assigned_to', 'due_date')
+        }),
+        ('وضعیت تکمیل', {
+            'fields': ('is_completed', 'completed_at'),
+            'classes': ('collapse',)
+        }),
+        ('اطلاعات سیستمی', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        })
+    )
+    
+    def team_link(self, obj):
+        url = reverse('admin:project_team_change', args=[obj.team.id])
+        return format_html('<a href="{}">{} ({})</a>', 
+                         url, obj.team.title, obj.team.team_code)
+    team_link.short_description = 'تیم'
+    team_link.admin_order_field = 'team__title'
+    
+    def assigned_to_name(self, obj):
+        if obj.assigned_to:
+            url = reverse('admin:account_user_change', args=[obj.assigned_to.id])
+            return format_html('<a href="{}">{}</a>', url, obj.assigned_to.full_name)
+        return '-'
+    assigned_to_name.short_description = 'واگذار شده به'
+    assigned_to_name.admin_order_field = 'assigned_to__full_name'
+    
+    def completion_status(self, obj):
+        if obj.is_completed:
+            return format_html(
+                '<span style="color: green;">✅ تکمیل شده</span><br><small>{}</small>',
+                obj.completed_at.strftime('%Y-%m-%d %H:%M') if obj.completed_at else ''
+            )
+        elif obj.due_date:
+            from django.utils import timezone
+            if obj.due_date < timezone.now().date():
+                return format_html('<span style="color: red;">⏰ گذشته از مهلت</span>')
+            else:
+                return format_html('<span style="color: orange;">⏳ در انتظار</span>')
+        return format_html('<span style="color: gray;">📋 در انتظار</span>')
+    completion_status.short_description = 'وضعیت'
+    
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related('team', 'assigned_to')
+
+
+# Add these inline admin classes to your existing TeamAdmin
+class TeamChatMessageInline(admin.TabularInline):
+    """Inline for viewing recent team chat messages"""
+    model = TeamChatMessage
+    extra = 0
+    readonly_fields = ['user', 'message', 'created_at', 'is_edited']
+    fields = ['user', 'message', 'created_at', 'is_edited']
+    
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related('user').order_by('-created_at')[:10]
+    
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
+class TeamOnlineMeetingInline(admin.TabularInline):
+    """Inline for team online meetings"""
+    model = TeamOnlineMeeting
+    extra = 0
+    fields = ['title', 'meeting_url', 'scheduled_for', 'is_active']
+    readonly_fields = ['created_at']
+
+
+class TeamUnstableTaskInline(admin.TabularInline):
+    """Inline for team unstable tasks"""
+    model = TeamUnstableTask
+    extra = 0
+    fields = ['title', 'assigned_to', 'due_date', 'is_completed']
+    readonly_fields = ['created_at', 'completed_at']
+
 class TeamAdmin(admin.ModelAdmin):
     search_fields = ["title"]
+    inlines = [
+        TeamOnlineMeetingInline,
+        TeamUnstableTaskInline,
+        TeamChatMessageInline,
+    ]
 
 
 class TeamRequestAdmin(admin.ModelAdmin):

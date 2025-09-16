@@ -219,6 +219,69 @@ class ResumeViewSet(ModelViewSet):
 
         return Response({"message": "عملیات با موفقیت انجام شد."}, status=status.HTTP_200_OK)
 
+    @action(methods=['POST'], detail=True, url_path='update-role-tags')
+    def update_role_tags(self, request, pk=None):
+        """Update manual role tags for the resume"""
+        resume = self.get_object()
+        
+        # Ensure user can only update their own resume
+        if resume.user != request.user:
+            return Response(
+                {'error': 'شما فقط می‌توانید برچسب‌های خود را ویرایش کنید'}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        role_tags = request.data.get('role_tags', [])
+        
+        # Validate format and limit
+        if not isinstance(role_tags, list):
+            return Response(
+                {'error': 'برچسب‌ها باید به صورت لیست ارسال شوند'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if len(role_tags) > 4:
+            return Response(
+                {'error': 'حداکثر 4 برچسب نقش مجاز است'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Validate each tag structure
+        for tag in role_tags:
+            if not isinstance(tag, dict) or 'code' not in tag or 'name' not in tag:
+                return Response(
+                    {'error': 'فرمت برچسب‌ها صحیح نیست'}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        
+        # Save manual role tags
+        resume.manual_role_tags = role_tags
+        resume.save()
+        
+        return Response({
+            'message': 'برچسب‌های نقش با موفقیت به‌روزرسانی شد',
+            'role_tags': resume.manual_role_tags
+        })
+
+    @action(methods=['DELETE'], detail=True, url_path='clear-role-tags')
+    def clear_role_tags(self, request, pk=None):
+        """Clear manual role tags (revert to auto-generated)"""
+        resume = self.get_object()
+        
+        if resume.user != request.user:
+            return Response(
+                {'error': 'شما فقط می‌توانید برچسب‌های خود را حذف کنید'}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        resume.manual_role_tags = []
+        resume.save()
+        
+        return Response({
+            'message': 'برچسب‌های دستی پاک شد. برچسب‌های خودکار بازگردانده خواهند شد',
+            'role_tags': resume.get_role_tags()
+        })
+
 
 class ResumeSecondToThirdStep(APIView):
     schema = TaggedAutoSchema(tags=["Resume"])

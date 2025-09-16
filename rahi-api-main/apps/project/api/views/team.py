@@ -10,14 +10,14 @@ from rest_framework.exceptions import ValidationError
 from apps.api.permissions import IsUser, IsSysgod
 from apps.project import models
 from apps.project.api.serializers import team as team_serializers
+from apps.project.api.views.team_deputy_management import TeamDeputyManagementViewSet
 
 
-class TeamRequestViewSet(ModelViewSet):
+class TeamRequestViewSet(TeamDeputyManagementViewSet, ModelViewSet):
     serializer_class = team_serializers.TeamRequestSerializer
     permission_classes = [IsUser | IsSysgod]
     
     def get_queryset(self):
-        """Filter requests based on user role and request type"""
         user = self.request.user
         request_type = self.request.query_params.get('request_type')
         status_filter = self.request.query_params.get('status')
@@ -36,10 +36,6 @@ class TeamRequestViewSet(ModelViewSet):
 
     @action(methods=['POST'], detail=False, url_path='request-leave')
     def request_leave_team(self, request):
-        """
-        Member requests to leave their team.
-        Creates a LEAVE request that team leader must approve.
-        """
         user = request.user
         
         # Check if user is in a team
@@ -77,9 +73,6 @@ class TeamRequestViewSet(ModelViewSet):
 
     @action(methods=['POST'], detail=False, url_path='cancel-leave')
     def cancel_leave_request(self, request):
-        """
-        Cancel pending leave request.
-        """
         user = request.user
         
         leave_request = models.TeamRequest.objects.filter(
@@ -94,9 +87,6 @@ class TeamRequestViewSet(ModelViewSet):
 
     @action(methods=['POST'], detail=False, url_path='approve-leave')
     def approve_leave_request(self, request):
-        """
-        Team leader approves/rejects leave request.
-        """
         user = request.user
         request_id = request.data.get('request_id')
         action_type = request.data.get('action')  # 'approve' or 'reject'
