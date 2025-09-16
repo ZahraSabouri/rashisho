@@ -1,4 +1,4 @@
-from django.db.models import Q, Count
+from django.db.models import Q, Count, Max, Case, When, F, OuterRef, Subquery
 from django.contrib.auth import get_user_model
 from rest_framework import status, permissions
 from rest_framework.response import Response
@@ -9,7 +9,8 @@ from apps.api.schema import TaggedAutoSchema
 
 from apps.account.models import DirectMessage
 from apps.account.api.serializers.messages import (
-    SendMessageInSer, DirectMessageOutSer, ChatThreadOutSer
+    SendMessageInSer, DirectMessageOutSer, ChatThreadOutSer,
+    ChatListItemSer
 )
 
 User = get_user_model()
@@ -193,3 +194,103 @@ class UserChatsAV(APIView):
             reverse=True,
         )
         return Response(threads, status=200)
+
+
+class ChatsAV(APIView):
+    schema = TaggedAutoSchema(tags=["User DM"])
+    permission_classes = [permissions.IsAuthenticated]
+
+    @extend_schema(
+        tags=["User DM"],
+        parameters=[
+            OpenApiParameter("limit", int, OpenApiParameter.QUERY, required=False,
+                             description="Max conversations to return (default 50, max 200)"),
+            OpenApiParameter("order", str, OpenApiParameter.QUERY, required=False,
+                             description="Message order inside each conversation: desc|asc (default desc)"),
+        ],
+        responses={200: ChatListItemSer(many=True)},
+        # summary="List DM chats (one row per conversation; only the last message with each peer).",
+        description="Like Telegram/Instagram chats screen. Uses your token; no path id.",
+    )
+    def get(self, request):
+        me = request.user
+
+        # Limit handling (keep fast & predictable)
+        try:
+            limit = int(request.query_params.get("limit") or 50)
+        except ValueError:
+            limit = 50
+        limit = max(1, min(limit, 200))
+
+        # Compute unread counts per peer for 'me' (receiver=me, unread only)
+        unread_rows = (
+            DirectMessage.objects
+            .filter(receiver=me, is_read=False)
+            .values("sender_id")
+            .annotate(c=Count("id"))
+        )
+        unread_by_peer = {str(r["sender_id"]): r["c"] for r in unread_rows}
+
+        # Build a "peer_id" for each message relative to me
+        base = (
+            DirectMessage.objects
+            .filter(Q(sender=me) | Q(receiver=me))
+            .annotate(peer_id=Case(
+                When(sender_id=me.id, then=F("receiver_id")),
+                default=F("sender_id"),
+                output_field=models.UUIDField(),
+            ))
+        )
+
+        # For each peer, find the id of the latest message (subquery)
+        last_msg_id_sq = (
+            DirectMessage.objects
+            .filter(
+                Q(sender=me, receiver_id=OuterRef("peer_id")) |
+                Q(sender_id=OuterRef("peer_id"), receiver=me)
+            )
+            .order_by("-created_at")
+            .values("id")[:1]
+        )
+
+        # Get the peers ordered by last message time (desc)
+        peers = (
+            base.values("peer_id")
+            .annotate(last_created=Max("created_at"),
+                      last_msg_id=Subquery(last_msg_id_sq))
+            .order_by("-last_created")[:limit]
+        )
+
+        # Fetch the last message rows in one query
+        last_ids = [p["last_msg_id"] for p in peers if p["last_msg_id"]]
+        msgs = (
+            DirectMessage.objects
+            .filter(id__in=last_ids)
+            .select_related("sender", "receiver")
+            .order_by("-created_at")
+        )
+
+        # Build response rows
+        order = (request.query_params.get("order") or "desc").lower()
+        out = []
+        for m in msgs:
+            # Determine the counterpart (peer) relative to me
+            peer = m.receiver if m.sender_id == me.id else m.sender
+            # avatar absolute URL if available
+            avatar = None
+            if getattr(peer, "avatar", None):
+                try:
+                    avatar = request.build_absolute_uri(peer.avatar.url)
+                except Exception:
+                    avatar = None
+            out.append({
+                "peer": {"id": str(peer.id), "full_name": getattr(peer, "full_name", peer.username), "avatar": avatar},
+                "last_message": DirectMessageOutSer(m).data,
+                "unread_count": unread_by_peer.get(str(peer.id), 0),
+            })
+
+        # Keep chats in descending recency by default; allow asc if requested
+        if order == "asc":
+            out = list(reversed(out))
+
+        return Response(ChatListItemSer(out, many=True).data, status=status.HTTP_200_OK)

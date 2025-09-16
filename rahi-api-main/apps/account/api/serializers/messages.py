@@ -34,3 +34,8 @@ class ChatThreadOutSer(serializers.Serializer):
     unread = serializers.IntegerField()
     last_message = DirectMessageOutSer()
     messages = DirectMessageOutSer(many=True)
+
+class ChatListItemSer(serializers.Serializer):
+    peer = serializers.DictField()          # {id, full_name, avatar}
+    last_message = DirectMessageOutSer()
+    unread_count = serializers.IntegerField()
