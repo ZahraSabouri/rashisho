@@ -1,202 +1,181 @@
+# apps/project/api/serializers/free_participants.py - Create new file
+
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from apps.exam.models import UserAnswer
-from apps.project.models import ProjectAttractiveness
-from django.db import models
-from rest_framework.response import Response
+from apps.account.models import Resume
 
 User = get_user_model()
 
 
 class FreeParticipantSerializer(serializers.ModelSerializer):
-    
-    attractive_projects = serializers.SerializerMethodField()
-    attractive_projects_mode = serializers.SerializerMethodField()
-    belbin_role_tags = serializers.SerializerMethodField()
     latest_education = serializers.SerializerMethodField()
-    team_formation_province = serializers.SerializerMethodField()
+    avatar_url = serializers.SerializerMethodField()
+    attractive_projects_count = serializers.SerializerMethodField()
+    province_name = serializers.SerializerMethodField()
     
     class Meta:
         model = User
         fields = [
-            'id', 'full_name', 'avatar', 'city',
-            'attractive_projects', 'attractive_projects_mode',
-            'belbin_role_tags', 'latest_education', 'team_formation_province'
+            'id', 'full_name', 'avatar_url', 'latest_education',
+            'attractive_projects_count', 'province_name'
         ]
-        read_only_fields = ['id', 'full_name']
+    
+    def get_latest_education(self, obj):
+        resume = getattr(obj, 'resume', None)
+        if resume:
+            latest_education = resume.educations.order_by('-graduation_year').first()
+            if latest_education:
+                return {
+                    'degree_level': latest_education.degree_level,
+                    'field_of_study': latest_education.field_of_study,
+                    'university': latest_education.university
+                }
+        return None
+    
+    def get_avatar_url(self, obj):
+        if obj.avatar:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.avatar.url)
+        return None
+    
+    def get_attractive_projects_count(self, obj):
+        """Get count of user's attractive projects"""
+        return obj.attractiveness_declarations.count()
+    
+    def get_province_name(self, obj):
+        """Get user's province name for team formation"""
+        resume = getattr(obj, 'resume', None)
+        if resume and hasattr(resume, 'team_formation_province'):
+            return resume.team_formation_province.title
+        elif obj.city and hasattr(obj.city, 'province'):
+            return obj.city.province.title
+        return None
 
+
+class FreeParticipantDetailSerializer(FreeParticipantSerializer):
+    attractive_projects = serializers.SerializerMethodField()
+    shared_attractive_projects = serializers.SerializerMethodField()
+    belbin_role_tags = serializers.SerializerMethodField()
+    contact_info = serializers.SerializerMethodField()
+    education_history = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = User
+        fields = FreeParticipantSerializer.Meta.fields + [
+            'attractive_projects', 'shared_attractive_projects', 
+            'belbin_role_tags', 'contact_info', 'education_history'
+        ]
+    
     def get_attractive_projects(self, obj):
         """Get user's attractive projects"""
-        attractions = ProjectAttractiveness.objects.filter(
-            user=obj
-        ).select_related('project')[:5]  # Limit to 5 for performance
+        projects = obj.attractiveness_declarations.select_related(
+            'project'
+        ).order_by('project__title')[:10]  # Limit for performance
         
         return [
             {
-                'id': attr.project.id,
-                'title': attr.project.title,
-                'is_shared': self._is_shared_with_current_user(attr.project)
+                'id': decl.project.id,
+                'title': decl.project.title,
+                'short_description': decl.project.description[:100] + '...' if len(decl.project.description) > 100 else decl.project.description
             }
-            for attr in attractions
+            for decl in projects
         ]
-
-    def get_attractive_projects_mode(self, obj):
-        """
-        Return the display mode for attractive projects
-        Mode 1 (dropdown): 'dropdown'
-        Mode 2 (expanded list): 'expanded'
-        """
-        # This could be a user preference, for now default to expanded
-        # You can add a user preference field later
-        return 'expanded'
-
-    # def get_belbin_role_tags(self, obj):
-    #     try:
-    #         user_answer = UserAnswer.objects.get(user=obj)
-    #         belbin_data = user_answer.belbin_answer
-            
-    #         if not belbin_data or belbin_data.get('status') != 'finished':
-    #             return self._get_manual_role_tags(obj)
-            
-    #         # Extract top roles from Belbin results
-    #         belbin_results = belbin_data.get('belbin', {})
-    #         role_scores = []
-            
-    #         # Map Belbin roles to short tags
-    #         BELBIN_ROLE_MAPPING = {
-    #             'Plant': 'PL',
-    #             'Resource Investigator': 'RI', 
-    #             'Coordinator': 'CO',
-    #             'Shaper': 'SH',
-    #             'Monitor Evaluator': 'ME',
-    #             'Teamworker': 'TW',
-    #             'Implementer': 'IM',
-    #             'Completer Finisher': 'CF',
-    #             'Specialist': 'SP'
-    #         }
-            
-    #         # Extract scores for each role
-    #         for role, short_code in BELBIN_ROLE_MAPPING.items():
-    #             score = belbin_results.get(role, 0)
-    #             if isinstance(score, (int, float)) and score > 0:
-    #                 role_scores.append((role, short_code, score))
-            
-    #         # Sort by score descending and take top 2-4 roles
-    #         role_scores.sort(key=lambda x: x[2], reverse=True)
-    #         top_roles = role_scores[:4]  # Max 4 roles
-            
-    #         if len(top_roles) >= 2:
-    #             return [
-    #                 {
-    #                     'code': role[1], 
-    #                     'name': role[0],
-    #                     'score': role[2],
-    #                     'source': 'auto'
-    #                 }
-    #                 for role in top_roles[:4]
-    #             ]
-    #         else:
-    #             return self._get_manual_role_tags(obj)
-                
-    #     except UserAnswer.DoesNotExist:
-    #         return self._get_manual_role_tags(obj)
-    #     except Exception:
-    #         return self._get_manual_role_tags(obj)
-
-    def get_belbin_role_tags(self, obj):
-        """Get role tags from Resume model"""
-        if not hasattr(obj, 'resume') or not obj.resume:
-            return []
-            
-        return obj.resume.get_role_tags(max_tags=4)
-    def _get_manual_role_tags(self, obj):
-        """
-        Get manually set role tags if auto-generation fails
-        This would typically come from a user profile field
-        """
-        # For now, return empty list - you can add a manual field later
-        # to the User model or Resume model like 'manual_role_tags'
-        return []
-
-    def _is_shared_with_current_user(self, project):
-        """Check if project is also attractive to current user"""
+    
+    def get_shared_attractive_projects(self, obj):
         request = self.context.get('request')
         if not request or not request.user.is_authenticated:
-            return False
-            
-        return ProjectAttractiveness.objects.filter(
-            user=request.user,
-            project=project
-        ).exists()
-
-    def get_latest_education(self, obj):
-        if not hasattr(obj, 'resume') or not obj.resume:
-            return None
-            
-        latest_education = obj.resume.educations.order_by('-graduation_year').first()
-        if not latest_education:
-            return None
-            
-        return {
-            'degree': latest_education.get_degree_display() if hasattr(latest_education, 'get_degree_display') else None,
-            'field': latest_education.field.title if hasattr(latest_education, 'field') and latest_education.field else None,
-            'university': latest_education.university.title if hasattr(latest_education, 'university') and latest_education.university else None,
-        }
-
-    def get_team_formation_province(self, obj):
-        if not hasattr(obj, 'resume') or not obj.resume:
-            return None
-            
-        if not obj.resume.team_formation_province:
-            return None
-            
-        return {
-            'id': obj.resume.team_formation_province.id,
-            'title': obj.resume.team_formation_province.title
-        }
-    
-    
-    def list(self, request):
-        queryset = self.get_queryset()
+            return []
+        
         current_user = request.user
         
-        # Get current user's attractive projects for similarity scoring
-        user_attractions = list(
-            models.ProjectAttractiveness.objects.filter(
-                user=current_user
-            ).values_list('project_id', flat=True)
+        # Get shared attractive projects
+        current_user_projects = set(
+            current_user.attractiveness_declarations.values_list(
+                'project_id', flat=True
+            )
         )
         
-        # Annotate users with shared project count for ordering
-        users_data = []
-        for user in queryset:
-            user_attractions_ids = list(
-                models.ProjectAttractiveness.objects.filter(
-                    user=user
-                ).values_list('project_id', flat=True)
-            )
-            
-            # Calculate shared projects count
-            shared_count = len(set(user_attractions) & set(user_attractions_ids))
-            
-            users_data.append({
-                'user': user,
-                'shared_projects_count': shared_count
-            })
+        participant_projects = obj.attractiveness_declarations.select_related(
+            'project'
+        ).filter(project_id__in=current_user_projects)
         
-        # Sort by shared projects (desc), then alphabetically
-        users_data.sort(key=lambda x: (-x['shared_projects_count'], x['user'].full_name))
+        return [
+            {
+                'id': decl.project.id,
+                'title': decl.project.title
+            }
+            for decl in participant_projects
+        ]
+    
+    def get_belbin_role_tags(self, obj):
+        # This would need to be implemented based on your psychological test results
+        # For now, return empty list or mock data
+        resume = getattr(obj, 'resume', None)
+        if resume:
+            # You could add a belbin_roles field to Resume model
+            # or extract from psychological test results
+            return []  # Placeholder
+        return []
+    
+    def get_contact_info(self, obj):
+        request = self.context.get('request')
+        current_user = request.user if request else None
         
-        # Extract sorted users
-        sorted_users = [item['user'] for item in users_data]
+        if not current_user or not current_user.is_authenticated:
+            return {'contact_available': False}
         
-        # Paginate
-        page = self.paginate_queryset(sorted_users)
-        if page is not None:
-            serializer = FreeParticipantSerializer(page, many=True, context={'request': request})
-            return self.get_paginated_response(serializer.data)
-        
-        serializer = FreeParticipantSerializer(sorted_users, many=True, context={'request': request})
-        return Response(serializer.data)
+        # Check if contact has been approved between users
+        # This would need ContactRequest model implementation
+        return {
+            'contact_available': False,  # Default - must request contact
+            'can_request_contact': current_user.id != obj.id,
+        }
+    
+    def get_education_history(self, obj):
+        """Get complete education history"""
+        resume = getattr(obj, 'resume', None)
+        if resume:
+            educations = resume.educations.order_by('-graduation_year')
+            return [
+                {
+                    'degree_level': edu.degree_level,
+                    'field_of_study': edu.field_of_study,
+                    'university': edu.university,
+                    'graduation_year': edu.graduation_year
+                }
+                for edu in educations
+            ]
+        return []
 
 
+class FreeParticipantActionSerializer(serializers.Serializer):
+    """Serializer for available actions on free participants"""
+    action = serializers.CharField()
+    label = serializers.CharField()
+    description = serializers.CharField()
+    blocked = serializers.BooleanField(default=False)
+    team_info = serializers.DictField(required=False)
+
+
+class TeamProposalSerializer(serializers.Serializer):
+    """Serializer for team proposal requests"""
+    participant_id = serializers.IntegerField()
+    message = serializers.CharField(max_length=500, required=False, allow_blank=True)
+    
+    def validate_participant_id(self, value):
+        """Validate that participant exists and is free"""
+        try:
+            user = User.objects.get(id=value)
+        except User.DoesNotExist:
+            raise serializers.ValidationError("کاربر یافت نشد")
+        
+        # Check if user is free (doesn't have active team membership)
+        has_team = user.team_requests.filter(
+            status='A', request_type='JOIN'
+        ).exists()
+        
+        if has_team:
+            raise serializers.ValidationError("این کاربر قبلاً عضو تیمی است")
+        
+        return value
