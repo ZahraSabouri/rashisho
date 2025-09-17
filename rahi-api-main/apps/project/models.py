@@ -1011,6 +1011,7 @@ class TeamRequest(BaseModel):
         ("JOIN", "درخواست عضویت"),
         ("LEAVE", "درخواست خروج"),
         ("INVITE", "دعوت به عضویت"),
+        ("PROPOSE", "پیشنهاد تشکیل تیم"),
         ("DISSOLVE", "درخواست انحلال تیم"),
         ("PROMOTE_DEPUTY", "ارتقا به قائم مقام"),
         ("DEMOTE_DEPUTY", "تنزل از قائم مقام"),
