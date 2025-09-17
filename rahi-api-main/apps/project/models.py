@@ -672,35 +672,33 @@ class Team(BaseModel):
         super().save(*args, **kwargs)
 
     def generate_team_code(self):
-        # Get team leader to determine province
-        leader = self.get_leader_user()
-        if not leader:
-            # Fallback to a default if no leader yet
-            province_code = "21"  # Default to Tehran
-        else:
-            # Get leader's team formation province from resume
-            resume = getattr(leader, 'resume', None)
-            if resume and resume.team_formation_province:
-                province_code = resume.team_formation_province.phone_code
-            else:
-                province_code = "21"  # Default to Tehran
+        # Get team leader's province phone code
+        leader_province_code = "21"  # Default Tehran
+        
+        leader_request = self.requests.filter(
+            user_role='C', status='A', request_type='JOIN'
+        ).select_related('user').first()
+        
+        if leader_request and hasattr(leader_request.user, 'resume'):
+            resume = leader_request.user.resume
+            if hasattr(resume, 'team_formation_province') and resume.team_formation_province:
+                # Assuming Province model has phone_code field
+                province = resume.team_formation_province
+                if hasattr(province, 'phone_code'):
+                    leader_province_code = province.phone_code
         
         # Get stage number
-        stage = str(self.team_building_stage)
+        stage = self.team_building_stage
         
-        # Generate sequence number (001-999)
-        existing_teams = Team.objects.filter(
-            team_code__startswith=f"{province_code}{stage}"
+        # Get sequence number for this province+stage combination
+        existing_teams_count = Team.objects.filter(
+            team_code__startswith=f"{leader_province_code}{stage}"
         ).count()
         
-        sequence = str(existing_teams + 1).zfill(3)
+        sequence = str(existing_teams_count + 1).zfill(3)
         
-        # Ensure sequence doesn't exceed 999
-        if int(sequence) > 999:
-            sequence = "999"
-        
-        return f"{province_code}{stage}{sequence}"
-    
+        return f"{leader_province_code}{stage}{sequence}"
+
     def get_leader_user(self):
         leader_request = self.requests.filter(user_role="C", status="A", request_type="JOIN").first()
         return leader_request.user if leader_request else None
@@ -868,6 +866,118 @@ class Team(BaseModel):
             members.append(member_info)
         
         return members
+
+    def _have_been_teammates(self, user1, user2):
+        from django.db.models import Q
+        
+        # Get all teams where user1 was a member
+        user1_teams = TeamRequest.objects.filter(
+            user=user1,
+            status='A',
+            request_type='JOIN'
+        ).values_list('team_id', flat=True)
+        
+        # Check if user2 was also in any of those teams
+        return TeamRequest.objects.filter(
+            user=user2,
+            status='A', 
+            request_type='JOIN',
+            team_id__in=user1_teams
+        ).exists()
+
+    def _get_available_new_users_for_inviter(self, inviting_user):
+        from django.contrib.auth import get_user_model
+        from django.db.models import Q
+        
+        User = get_user_model()
+        
+        # Get all users this person has been teammates with
+        previous_teammate_teams = TeamRequest.objects.filter(
+            user=inviting_user,
+            status='A',
+            request_type='JOIN'
+        ).values_list('team_id', flat=True)
+        
+        previous_teammate_ids = TeamRequest.objects.filter(
+            team_id__in=previous_teammate_teams,
+            status='A',
+            request_type='JOIN'
+        ).exclude(user=inviting_user).values_list('user_id', flat=True)
+        
+        # Get users who are not currently in a team and are not previous teammates
+        available_users = User.objects.filter(
+            ~Q(id__in=previous_teammate_ids),
+            ~Q(id=inviting_user.id)
+        ).exclude(
+            team_requests__status='A',
+            team_requests__request_type='JOIN'
+        )
+        
+        return available_users.exists()
+
+    def can_invite_user(self, inviting_user, target_user):
+        # Check if repeat teammate prevention is enabled
+        stage_settings = TeamBuildingSettings.objects.filter(
+            stage=self.team_building_stage,
+            prevent_repeat_teammates=True
+        ).first()
+        
+        if not stage_settings:
+            return True, ""
+        
+        # Check if there are available new participants
+        available_new_users = self._get_available_new_users_for_inviter(inviting_user)
+        
+        if not available_new_users:
+            # No new users available, allow inviting previous teammates
+            return True, ""
+        
+        # Check if these users have been teammates before
+        have_been_teammates = self._have_been_teammates(inviting_user, target_user)
+        
+        if have_been_teammates and available_new_users:
+            return False, "این فرد برای شما کراری محسوب می‌شود در حالی که شرکت‌کننده‌های جدیدی برای تیم‌سازی وجود دارند"
+        
+        return True, ""
+
+    def is_formation_allowed(self):
+        return TeamBuildingSettings.is_stage_formation_enabled(self.team_building_stage)
+    
+    def is_team_page_accessible(self):
+        return TeamBuildingSettings.is_stage_page_enabled(self.team_building_stage)
+    
+    def get_stage_settings(self):
+        return TeamBuildingSettings.get_stage_settings(self.team_building_stage)
+    
+    def is_unstable_team(self):
+        return self.team_building_stage in [1, 2, 3]
+    
+    def is_stable_team(self):
+        return self.team_building_stage == 4
+    
+    def can_be_auto_completed(self):
+        if not self.is_unstable_team():
+            return False
+        
+        stage_settings = TeamBuildingSettings.objects.filter(
+            stage=self.team_building_stage,
+            control_type='formation',
+            allow_auto_completion=True
+        ).first()
+        
+        return bool(stage_settings)
+    
+    def get_formation_deadline(self):
+        stage_settings = TeamBuildingSettings.objects.filter(
+            stage=self.team_building_stage,
+            control_type='formation'
+        ).first()
+        
+        if stage_settings:
+            from datetime import timedelta
+            return self.created_at + timedelta(hours=stage_settings.formation_deadline_hours)
+        
+        return None
 
 
 class ProvinceExtension:
@@ -1108,3 +1218,124 @@ class TeamUnstableTask(BaseModel):
         return f"{self.team.title}: {self.title}"
 
 
+class TeamBuildingSettings(BaseModel):
+    STAGE_CHOICES = [
+        (1, "مرحله ناپایدار اول"),
+        (2, "مرحله ناپایدار دوم"), 
+        (3, "مرحله ناپایدار سوم"),
+        (4, "مرحله پایدار")
+    ]
+    
+    CONTROL_TYPE_CHOICES = [
+        ('formation', 'صفحه تشکیل تیم'),
+        ('team_page', 'صفحه تیم'),
+    ]
+    
+    stage = models.IntegerField(
+        choices=STAGE_CHOICES,
+        verbose_name="مرحله تیم‌سازی"
+    )
+    control_type = models.CharField(
+        max_length=20,
+        choices=CONTROL_TYPE_CHOICES,
+        verbose_name="نوع کنترل"
+    )
+    is_enabled = models.BooleanField(
+        default=False,
+        verbose_name="فعال"
+    )
+    custom_description = models.TextField(
+        blank=True,
+        verbose_name="توضیحات سفارشی"
+    )
+    
+    # Team formation rules
+    min_team_size = models.IntegerField(
+        default=2,
+        verbose_name="حداقل اعضای تیم"
+    )
+    max_team_size = models.IntegerField(
+        default=6,
+        verbose_name="حداکثر اعضای تیم"
+    )
+    
+    # Prevent repeat teammates rule (کراری منع)
+    prevent_repeat_teammates = models.BooleanField(
+        default=True,
+        verbose_name="قانون منع همتیمی کراری"
+    )
+    
+    # Auto completion settings for unstable teams
+    allow_auto_completion = models.BooleanField(
+        default=True,
+        verbose_name="تکمیل خودکار تیم‌های ناپایدار"
+    )
+    
+    # Time limits
+    formation_deadline_hours = models.IntegerField(
+        default=24,
+        verbose_name="مهلت تشکیل تیم (ساعت)"
+    )
+    
+    class Meta(BaseModel.Meta):
+        verbose_name = "تنظیمات تیم‌سازی"
+        verbose_name_plural = "تنظیمات تیم‌سازی"
+        unique_together = ['stage', 'control_type']
+    
+    def __str__(self):
+        return f"{self.get_stage_display()} - {self.get_control_type_display()}"
+    
+    @classmethod
+    def is_stage_formation_enabled(cls, stage):
+        return cls.objects.filter(
+            stage=stage, 
+            control_type='formation', 
+            is_enabled=True
+        ).exists()
+    
+    @classmethod
+    def is_stage_page_enabled(cls, stage):
+        return cls.objects.filter(
+            stage=stage, 
+            control_type='team_page', 
+            is_enabled=True
+        ).exists()
+    
+    @classmethod
+    def get_stage_settings(cls, stage):
+        return cls.objects.filter(stage=stage)
+
+
+class TeamBuildingStageDescription(BaseModel):
+    PAGE_CHOICES = [
+        ('unstable_1_formation', 'صفحه تشکیل تیم ناپایدار مرحله 1'),
+        ('unstable_2_formation', 'صفحه تشکیل تیم ناپایدار مرحله 2'),
+        ('unstable_3_formation', 'صفحه تشکیل تیم ناپایدار مرحله 3'),
+        ('stable_formation', 'صفحه تشکیل تیم پایدار'),
+        ('team_page', 'صفحه تیم')
+    ]
+    
+    page_type = models.CharField(
+        max_length=30,
+        choices=PAGE_CHOICES,
+        unique=True,
+        verbose_name="نوع صفحه"
+    )
+    title = models.CharField(
+        max_length=200,
+        verbose_name="عنوان"
+    )
+    description = models.TextField(
+        verbose_name="توضیحات"
+    )
+    is_active = models.BooleanField(
+        default=True,
+        verbose_name="فعال"
+    )
+    
+    class Meta(BaseModel.Meta):
+        verbose_name = "توضیحات مراحل تیم‌سازی" 
+        verbose_name_plural = "توضیحات مراحل تیم‌سازی"
+    
+    def __str__(self):
+        return f"{self.get_page_type_display()}"
