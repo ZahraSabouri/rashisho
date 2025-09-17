@@ -25,13 +25,28 @@ class AnnouncementStateSerializer(Serializer):
 
 
 class AnnouncementOutSerializer(NotificationSerializer):
-    """Notification + current user's state (for /active endpoint)."""
-    user_state = AnnouncementStateSerializer()
+    user_state = serializers.SerializerMethodField(read_only=True)
 
     class Meta(NotificationSerializer.Meta):
-        # fields = list(NotificationSerializer.Meta.fields) + ["user_state"]
         fields = NotificationSerializer.Meta.fields
+        # fields = list(NotificationSerializer.Meta.fields) + ["user_state"]
 
+    def get_user_state(self, obj):
+        request = self.context.get("request") if hasattr(self, "context") else None
+        user = getattr(request, "user", None)
+        state = {"acknowledged": False, "snoozed_until": None}
+
+        if not user or not getattr(user, "is_authenticated", False):
+            return state
+
+        receipt = NotificationReceipt.objects.filter(
+            notification=obj, user=user
+        ).only("acknowledged_at", "snoozed_until").first()
+
+        if receipt:
+            state["acknowledged"] = bool(receipt.acknowledged_at)
+            state["snoozed_until"] = receipt.snoozed_until
+        return state
 
 
 class UserNotificationSer(ModelSerializer):
@@ -47,3 +62,38 @@ class MarkReadSer(Serializer):
 
 class SnoozeSer(Serializer):
     minutes = serializers.IntegerField(min_value=1, default=1440)  # 24h default
+
+
+class UserNotificationOutSer(serializers.ModelSerializer):
+    class Meta:
+        model = UserNotification
+        fields = ["id", "kind", "title", "body", "url", "created_at", "read_at"]
+        read_only_fields = fields
+
+        
+class NotificationOutSer(serializers.ModelSerializer):
+    class Meta:
+        model = UserNotification
+        fields = ["id", "kind", "title", "body", "url", "is_read", "created_at", "read_at"]
+        read_only_fields = fields
+
+
+class NotificationMarkReadInSer(serializers.Serializer):
+    ids = serializers.ListField(child=serializers.UUIDField(), min_length=1, max_length=200)
+
+
+class NotificationAckInSer(serializers.Serializer):
+    """
+    action:
+      - got_it          => mark read (do not show again)
+      - remind_later    => keep unread (shows on next login)
+    """
+    action = serializers.ChoiceField(choices=["got_it", "remind_later"])
+
+    def apply(self, notif: UserNotification):
+        act = self.validated_data["action"]
+        if act == "got_it":
+            notif.read_at = timezone.now()
+            notif.save(update_fields=["read_at", "updated_at"])
+        # remind_later: do nothing (still unread)
+        return notif

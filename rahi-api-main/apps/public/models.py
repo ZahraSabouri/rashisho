@@ -196,10 +196,38 @@ class UserNotification(BaseModel):
     body = models.TextField(blank=True)
     kind = models.CharField(max_length=32, choices=KINDS, default="INFO")
     payload = models.JSONField(default=dict, blank=True)  # e.g. {"team_id": "...", "team_title": "..."}
-    url = models.CharField(max_length=300, blank=True)
+    url = models.CharField(max_length=500, blank=True)
     is_read = models.BooleanField(default=False)
+    read_at = models.DateTimeField(null=True, blank=True)
 
     class Meta(BaseModel.Meta):
         verbose_name = "اعلان کاربر"
-        verbose_name_plural = "اعلانات کاربران"
-        ordering = ("-created_at",)
+        verbose_name_plural = "اعلان‌های کاربر"
+        indexes = [
+            models.Index(fields=["user", "is_read", "-created_at"]),
+        ]
+
+    def mark_read(self):
+        if not self.is_read:
+            from django.utils import timezone
+            self.is_read = True
+            self.read_at = timezone.now()
+            self.save(update_fields=["is_read", "read_at", "updated_at"])
+
+
+class Announcement(BaseModel):
+    title = models.CharField(max_length=200)
+    body  = models.TextField()
+    active = models.BooleanField(default=False)
+
+    class Meta(BaseModel.Meta):
+        verbose_name = "اعلان ورود"
+        verbose_name_plural = "اعلان‌های ورود"
+
+class UserAnnouncementState(BaseModel):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    announcement = models.ForeignKey(Announcement, on_delete=models.CASCADE)
+    got_it = models.BooleanField(default=False)  # True => don't show again
+
+    class Meta(BaseModel.Meta):
+        unique_together = ("user", "announcement")

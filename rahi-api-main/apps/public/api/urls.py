@@ -12,7 +12,11 @@ from apps.public.api.views import (
     ticket,
     user_profile_process,
 )
-
+from apps.public.api.views.notification import MyNotificationsAV, NotificationAckAV
+from apps.public.api.views.announcement import ActiveAnnouncementAV
+from apps.public.api.views.notification import (
+    NotificationListAV, NotificationUnreadCountAV, NotificationMarkReadAV, NotificationDeleteAV
+)
 app_name = "public"
 
 router = DefaultRouter()
@@ -30,5 +34,14 @@ router.register("department", ticket.DepartmentViewSet, basename="department")
 
 urlpatterns = [
     path("user-profile-process/", user_profile_process.UserProfileProcess.as_view(), name="user-profile-process"),
+    path("notifications/", MyNotificationsAV.as_view(), name="my-notifications"),
+    path("notifications/", NotificationListAV.as_view(), name="notifications"),
+    path("notifications/unread-count/", NotificationUnreadCountAV.as_view(), name="notifications-unread-count"),
+    path("notifications/mark-read/", NotificationMarkReadAV.as_view(), name="notifications-mark-read"),
+    path("notifications/<uuid:id>/", NotificationDeleteAV.as_view(), name="notification-delete"),
+
+    path("notifications/<uuid:id>/ack/", NotificationAckAV.as_view(), name="notification-ack"),
+    path("announcement/", ActiveAnnouncementAV.as_view(), name="login-announcement"),
+
     path("", include(router.urls)),
 ]

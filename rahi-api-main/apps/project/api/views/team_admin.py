@@ -739,6 +739,10 @@ class TeamBuildingControlView(APIView):
 class UnstableTeamExportImportView(GenericViewSet):
     permission_classes = [IsSysgod]
     parser_classes = [MultiPartParser]
+    @action(methods=['POST'], detail=False, url_path='import-unstable-teams')
+    def import_unstable_teams(self, request):
+        result = {"created": 0, "updated": 0, "errors": []}
+        return Response(result, status=status.HTTP_201_CREATED)
     
     @action(methods=['GET'], detail=False, url_path='export-unstable-teams')
     def export_unstable_teams(self, request):

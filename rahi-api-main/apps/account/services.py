@@ -8,6 +8,7 @@ from rest_framework.exceptions import ValidationError, PermissionDenied
 from apps.account.models import Connection
 from django.db import models
 from uuid import UUID
+from django.apps import apps
 
 def get_sso_user_info(token):
     try:
@@ -41,11 +42,28 @@ class ConnectionService:
         if Connection.objects.filter(from_user_id=from_user_id, to_user_id=to_user_id).exists():
             raise ValidationError({"detail": "درخواست قبلاً ارسال شده است."})
 
-        return Connection.objects.create(
+        # return Connection.objects.create(
+        #     from_user_id=from_user_id,
+        #     to_user=to_user,
+        #     status="pending",
+        # )
+        conn = Connection.objects.create(
             from_user_id=from_user_id,
             to_user=to_user,
             status="pending",
         )
+        try:
+            UserNotification = apps.get_model("public", "UserNotification")
+            UserNotification.objects.create(
+                user=to_user,
+                kind="REQUEST",
+                title="درخواست ارتباط جدید",
+                body="یک کاربر برای شما درخواست ارتباط ارسال کرد.",
+                url="/connections",
+            )
+        except Exception:
+            pass
+        return conn
 
     # def list_pendings(self, user_id: int, box: str | None = None):
     def list_pendings(self, user_id: UUID, box: str | None = None):
@@ -65,10 +83,6 @@ class ConnectionService:
     @transaction.atomic
     # def decide(self, *, connection_id: int, actor_user_id: int, decision: str) -> Connection:
     def decide(self, *, connection_id: UUID, actor_user_id: UUID, decision: str) -> Connection:
-        """
-        decision: 'accepted' | 'rejected'
-        فقط گیرنده‌ی درخواست می‌تواند تصمیم بگیرد.
-        """
         if decision not in ("accepted", "rejected"):
             raise ValidationError({"decision": "decisions مجاز: accepted | rejected"})
 
@@ -86,4 +100,17 @@ class ConnectionService:
 
         conn.status = decision
         conn.save(update_fields=["status", "updated_at"])
+        try:
+            UserNotification = apps.get_model("public", "UserNotification")
+            from_user = conn.from_user
+            UserNotification.objects.create(
+                user=from_user,
+                kind="INFO",
+                title="نتیجه درخواست ارتباط",
+                body=("درخواست شما پذیرفته شد." if decision == "accepted" else "درخواست شما رد شد."),
+                url="/connections",
+            )
+        except Exception:
+            pass
+
         return conn

@@ -349,6 +349,19 @@ class EnhancedTeamInvitationViewSet(ModelViewSet):
             requested_by=inviter,
             description=request.data.get('description', '')
         )
+        from apps.public.models import UserNotification
+        UserNotification.objects.create(
+            user=target_user,
+            kind="TEAM_INVITE",
+            title="دعوت به تیم",
+            body=f"{inviter.full_name} شما را به تیم «{team.title}» دعوت کرده است.",
+            payload={
+                "team_id": str(team.id),
+                "team_title": team.title,
+                "invitation_id": str(invitation.id),
+            },
+            url="/teams/invitations"  # your frontend route to the invites screen
+        )
         
         return Response({
             'message': 'دعوت‌نامه با موفقیت ارسال شد',
