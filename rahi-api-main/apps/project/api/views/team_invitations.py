@@ -9,9 +9,12 @@ from rest_framework.exceptions import ValidationError
 
 from apps.api.permissions import IsUser, IsSysgod
 from apps.project import models
+from apps.account.api.serializers.user import UserBriefInfoSerializer
 from apps.project.api.serializers import team as team_serializers
+from apps.project.api.serializers.team import TeamRequestSerializer
 from apps.settings.models import StudyField, Province
 from apps.resume.models import Resume
+from apps.project.models import Team, TeamRequest
 
 User = get_user_model()
 
@@ -21,7 +24,6 @@ class TeamInvitationViewSet(ModelViewSet):
     permission_classes = [IsUser | IsSysgod]
     
     def get_queryset(self):
-        """Filter to show only invitation-related requests"""
         return models.TeamRequest.objects.filter(
             request_type__in=['INVITE', 'PROPOSE']
         ).select_related('user', 'team', 'requested_by')
@@ -237,6 +239,247 @@ class TeamInvitationViewSet(ModelViewSet):
                 proposals_to_review, many=True, context={'request': request}
             ).data
         })
+
+
+class EnhancedTeamInvitationViewSet(ModelViewSet):
+# class TeamInvitationViewSet(ModelViewSet):
+    serializer_class = TeamRequestSerializer
+    permission_classes = [IsUser | IsSysgod]
+    
+    @action(methods=['POST'], detail=False, url_path='invite-with-validation')
+    def invite_user_with_validation(self, request):
+        inviter = request.user
+        target_user_id = request.data.get('user_id')
+        team_id = request.data.get('team_id')
+        
+        if not target_user_id or not team_id:
+            return Response(
+                {'error': 'user_id و team_id الزامی است'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            target_user = User.objects.get(id=target_user_id)
+            team = Team.objects.get(id=team_id)
+        except (User.DoesNotExist, Team.DoesNotExist):
+            return Response(
+                {'error': 'کاربر یا تیم پیدا نشد'}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Verify inviter is team leader or deputy
+        inviter_membership = team.requests.filter(
+            user=inviter, 
+            status='A', 
+            user_role__in=['C', 'D'],
+            request_type='JOIN'
+        ).first()
+        
+        if not inviter_membership:
+            return Response(
+                {'error': 'فقط سرگروه یا قائم مقام می‌تواند دعوت کند'}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Check if target user is already in a team
+        existing_membership = TeamRequest.objects.filter(
+            user=target_user,
+            status='A',
+            request_type='JOIN'
+        ).first()
+        
+        if existing_membership:
+            return Response(
+                {'error': 'این کاربر قبلاً عضو تیمی است'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Check team capacity
+        current_members = team.get_member_count()
+        stage_settings = team.get_stage_settings().filter(control_type='formation').first()
+        max_size = stage_settings.max_team_size if stage_settings else 6
+        
+        if current_members >= max_size:
+            return Response(
+                {'error': 'تیم به حداکثر ظرفیت رسیده است'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Check pending invitations
+        pending_invites = team.requests.filter(status='W', request_type='INVITE').count()
+        remaining_spots = max_size - current_members
+        
+        if pending_invites >= remaining_spots:
+            return Response(
+                {'error': 'تعداد دعوت‌های در انتظار از ظرفیت باقی‌مانده بیشتر است'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Check repeat teammate prevention rule
+        can_invite, reason = team.can_invite_user(inviter, target_user)
+        
+        if not can_invite:
+            return Response({
+                'error': reason,
+                'error_type': 'repeat_teammate_prevention',
+                'suggestion': 'لطفاً شرکت‌کنندگان جدید را برای تیم‌سازی در نظر بگیرید'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Check if invitation already exists
+        existing_invitation = TeamRequest.objects.filter(
+            team=team,
+            user=target_user,
+            request_type='INVITE',
+            status='W'
+        ).first()
+        
+        if existing_invitation:
+            return Response(
+                {'error': 'دعوت‌نامه قبلاً ارسال شده است'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Create invitation
+        invitation = TeamRequest.objects.create(
+            team=team,
+            user=target_user,
+            user_role='M',
+            request_type='INVITE',
+            status='W',
+            requested_by=inviter,
+            description=request.data.get('description', '')
+        )
+        
+        return Response({
+            'message': 'دعوت‌نامه با موفقیت ارسال شد',
+            'invitation': TeamRequestSerializer(invitation, context={'request': request}).data
+        }, status=status.HTTP_201_CREATED)
+    
+    @action(methods=['GET'], detail=False, url_path='available-users')
+    def get_available_users(self, request):
+        """
+        Get users available for invitation (considering repeat teammate rules)
+        """
+        user = request.user
+        
+        # Get user's current team
+        user_membership = TeamRequest.objects.filter(
+            user=user, status='A', request_type='JOIN'
+        ).select_related('team').first()
+        
+        if not user_membership or user_membership.user_role not in ['C', 'D']:
+            return Response(
+                {'error': 'شما مجاز به مشاهده این اطلاعات نیستید'}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        team = user_membership.team
+        
+        # Get all users who don't have a team
+        users_without_team = User.objects.exclude(
+            team_requests__status='A',
+            team_requests__request_type='JOIN'
+        )
+        
+        # Check if repeat prevention is enabled
+        stage_settings = team.get_stage_settings().filter(
+            prevent_repeat_teammates=True
+        ).first()
+        
+        if stage_settings:
+            # Get previous teammates
+            previous_teammate_teams = TeamRequest.objects.filter(
+                user=user,
+                status='A',
+                request_type='JOIN'
+            ).values_list('team_id', flat=True)
+            
+            previous_teammate_ids = TeamRequest.objects.filter(
+                team_id__in=previous_teammate_teams,
+                status='A',
+                request_type='JOIN'
+            ).exclude(user=user).values_list('user_id', flat=True)
+            
+            # Separate new users from previous teammates
+            new_users = users_without_team.exclude(id__in=previous_teammate_ids)
+            previous_teammates = users_without_team.filter(id__in=previous_teammate_ids)
+            
+            # If there are new users available, don't show previous teammates
+            if new_users.exists():
+                available_users = new_users
+                blocked_users = previous_teammates
+                show_blocked_reason = True
+            else:
+                available_users = users_without_team
+                blocked_users = User.objects.none()
+                show_blocked_reason = False
+        else:
+            available_users = users_without_team
+            blocked_users = User.objects.none()
+            show_blocked_reason = False
+        
+        # Apply filters
+        search = request.query_params.get('search', '')
+        if search:
+            available_users = available_users.filter(
+                full_name__icontains=search
+            )
+            blocked_users = blocked_users.filter(
+                full_name__icontains=search
+            )
+        
+        return Response({
+            'available_users': UserBriefInfoSerializer(
+                available_users[:50], many=True, context={'request': request}
+            ).data,
+            'blocked_users': UserBriefInfoSerializer(
+                blocked_users[:20], many=True, context={'request': request}
+            ).data if show_blocked_reason else [],
+            'repeat_prevention_enabled': bool(stage_settings),
+            'blocked_reason': (
+                'این افراد قبلاً همتیم شما بوده‌اند و شرکت‌کنندگان جدید در دسترس است' 
+                if show_blocked_reason else None
+            )
+        }, status=status.HTTP_200_OK)
+    
+    @action(methods=['POST'], detail=False, url_path='check-invitation-validity')
+    def check_invitation_validity(self, request):
+        """
+        Check if a potential invitation is valid before sending
+        """
+        inviter = request.user
+        target_user_id = request.data.get('user_id')
+        team_id = request.data.get('team_id')
+        
+        if not target_user_id or not team_id:
+            return Response(
+                {'valid': False, 'reason': 'اطلاعات کاربر یا تیم ناقص است'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            target_user = User.objects.get(id=target_user_id)
+            team = Team.objects.get(id=team_id)
+        except (User.DoesNotExist, Team.DoesNotExist):
+            return Response(
+                {'valid': False, 'reason': 'کاربر یا تیم پیدا نشد'}, 
+                status=status.HTTP_200_OK
+            )
+        
+        # All validation checks
+        can_invite, reason = team.can_invite_user(inviter, target_user)
+        
+        return Response({
+            'valid': can_invite,
+            'reason': reason if not can_invite else 'دعوت قابل ارسال است',
+            'user_info': {
+                'name': target_user.full_name,
+                'has_been_teammate': (
+                    team._have_been_teammates(inviter, target_user) 
+                    if can_invite else None
+                )
+            }
+        }, status=status.HTTP_200_OK)
 
 
 class FreeParticipantsViewSet(ModelViewSet):    
