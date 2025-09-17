@@ -7,6 +7,7 @@ from django.urls import reverse
 from django.utils.safestring import mark_safe
 
 from apps.project import models
+from apps.account.models import User
 
 from apps.project.models import ProjectAttractiveness
 from apps.project.models import (
@@ -500,6 +501,7 @@ class TeamUnstableTaskInline(admin.TabularInline):
     fields = ['title', 'assigned_to', 'due_date', 'is_completed']
     readonly_fields = ['created_at', 'completed_at']
 
+
 class TeamAdmin(admin.ModelAdmin):
     search_fields = ["title"]
     inlines = [
@@ -532,6 +534,287 @@ class TeamBuildingAnnouncementAdmin(admin.ModelAdmin):
 
 class UserScenarioTaskFileAdmin(admin.ModelAdmin):
     search_fields = ["user__user_info__national_id"]
+
+
+from django.contrib import admin
+from django.utils.html import format_html
+from django.urls import reverse
+from django.db.models import Count, Q
+from apps.project.models import (
+    TeamBuildingSettings, TeamBuildingStageDescription
+)
+
+@admin.register(TeamBuildingSettings)
+class TeamBuildingSettingsAdmin(admin.ModelAdmin):
+    """
+    Admin interface for the 12-stage team building control system
+    """
+    list_display = [
+        'stage_control_display', 'is_enabled', 'min_team_size', 'max_team_size',
+        'prevent_repeat_teammates', 'allow_auto_completion', 'formation_deadline_hours'
+    ]
+    list_filter = [
+        'stage', 'control_type', 'is_enabled', 'prevent_repeat_teammates', 
+        'allow_auto_completion'
+    ]
+    search_fields = ['stage', 'control_type', 'custom_description']
+    list_editable = ['is_enabled', 'prevent_repeat_teammates', 'allow_auto_completion']
+    
+    fieldsets = (
+        ('اطلاعات کنترل', {
+            'fields': ('stage', 'control_type', 'is_enabled')
+        }),
+        ('تنظیمات تیم', {
+            'fields': ('min_team_size', 'max_team_size', 'formation_deadline_hours'),
+            'classes': ('collapse',)
+        }),
+        ('قوانین تیم‌سازی', {
+            'fields': ('prevent_repeat_teammates', 'allow_auto_completion'),
+            'classes': ('collapse',)
+        }),
+        ('توضیحات سفارشی', {
+            'fields': ('custom_description',),
+            'classes': ('collapse',)
+        }),
+        ('اطلاعات سیستمی', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        })
+    )
+    readonly_fields = ['created_at', 'updated_at']
+    
+    def stage_control_display(self, obj):
+        """Display stage and control type together"""
+        color = '#4CAF50' if obj.is_enabled else '#f44336'
+        status = 'فعال' if obj.is_enabled else 'غیرفعال'
+        
+        return format_html(
+            '<strong>{} - {}</strong><br>'
+            '<span style="color: {}; font-size: 11px;">● {}</span>',
+            obj.get_stage_display(),
+            obj.get_control_type_display(),
+            color,
+            status
+        )
+    stage_control_display.short_description = 'مرحله و کنترل'
+    stage_control_display.admin_order_field = 'stage'
+    
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related()
+    
+    class Media:
+        css = {
+            'all': ('admin/css/team_building_admin.css',)  # Add custom CSS if needed
+        }
+
+
+@admin.register(TeamBuildingStageDescription)
+class TeamBuildingStageDescriptionAdmin(admin.ModelAdmin):
+    """
+    Admin interface for managing custom descriptions of team building pages
+    """
+    list_display = [
+        'page_type_display', 'title', 'is_active', 'description_preview', 'updated_at'
+    ]
+    list_filter = ['page_type', 'is_active', 'created_at']
+    search_fields = ['title', 'description', 'page_type']
+    list_editable = ['is_active']
+    
+    fieldsets = (
+        ('اطلاعات صفحه', {
+            'fields': ('page_type', 'title', 'is_active')
+        }),
+        ('توضیحات', {
+            'fields': ('description',)
+        }),
+        ('اطلاعات سیستمی', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        })
+    )
+    readonly_fields = ['created_at', 'updated_at']
+    
+    def page_type_display(self, obj):
+        """Enhanced display of page type"""
+        return format_html(
+            '<strong>{}</strong><br>'
+            '<span style="color: #666; font-size: 11px;">{}</span>',
+            obj.get_page_type_display(),
+            obj.page_type
+        )
+    page_type_display.short_description = 'نوع صفحه'
+    page_type_display.admin_order_field = 'page_type'
+    
+    def description_preview(self, obj):
+        """Show preview of description"""
+        preview = obj.description[:100] + '...' if len(obj.description) > 100 else obj.description
+        return format_html('<span style="color: #666;">{}</span>', preview)
+    description_preview.short_description = 'پیش‌نمایش توضیحات'
+
+
+# Enhanced Team admin with new functionality
+class TeamBuildingStageFilter(admin.SimpleListFilter):
+    title = 'نوع مرحله تیم‌سازی'
+    parameter_name = 'team_type'
+
+    def lookups(self, request, model_admin):
+        return (
+            ('unstable', 'تیم‌های ناپایدار (مراحل 1-3)'),
+            ('stable', 'تیم‌های پایدار (مرحله 4)'),
+        )
+
+    def queryset(self, request, queryset):
+        if self.value() == 'unstable':
+            return queryset.filter(team_building_stage__in=[1, 2, 3])
+        elif self.value() == 'stable':
+            return queryset.filter(team_building_stage=4)
+
+
+# Add to existing TeamAdmin class
+def enhanced_team_admin():
+    """
+    Enhance existing TeamAdmin with new functionality
+    Add these methods to your existing TeamAdmin class:
+    """
+    
+    # Add these to list_display
+    def team_type_display(self, obj):
+        """Display team type (stable/unstable)"""
+        if obj.team_building_stage in [1, 2, 3]:
+            return format_html(
+                '<span style="color: #FF9800; font-weight: bold;">ناپایدار - مرحله {}</span>',
+                obj.team_building_stage
+            )
+        else:
+            return format_html(
+                '<span style="color: #4CAF50; font-weight: bold;">پایدار - مرحله {}</span>',
+                obj.team_building_stage
+            )
+    team_type_display.short_description = 'نوع تیم'
+    team_type_display.admin_order_field = 'team_building_stage'
+    
+    def formation_status(self, obj):
+        """Display formation status"""
+        formation_enabled = obj.is_formation_allowed()
+        page_enabled = obj.is_team_page_accessible()
+        
+        status_html = []
+        if formation_enabled:
+            status_html.append('<span style="color: #4CAF50;">● تشکیل فعال</span>')
+        else:
+            status_html.append('<span style="color: #f44336;">● تشکیل غیرفعال</span>')
+        
+        if page_enabled:
+            status_html.append('<span style="color: #4CAF50;">● صفحه فعال</span>')
+        else:
+            status_html.append('<span style="color: #f44336;">● صفحه غیرفعال</span>')
+        
+        return format_html('<br>'.join(status_html))
+    formation_status.short_description = 'وضعیت تشکیل'
+    
+    def team_completion_status(self, obj):
+        """Display completion status for unstable teams"""
+        if not obj.is_unstable_team():
+            return format_html('<span style="color: #666;">-</span>')
+        
+        can_auto_complete = obj.can_be_auto_completed()
+        deadline = obj.get_formation_deadline()
+        
+        status_parts = []
+        if can_auto_complete:
+            status_parts.append('<span style="color: #4CAF50;">تکمیل خودکار: فعال</span>')
+        else:
+            status_parts.append('<span style="color: #f44336;">تکمیل خودکار: غیرفعال</span>')
+        
+        if deadline:
+            from django.utils import timezone
+            if deadline > timezone.now():
+                status_parts.append(f'<span style="color: #FF9800;">مهلت: {deadline.strftime("%Y-%m-%d %H:%M")}</span>')
+            else:
+                status_parts.append('<span style="color: #f44336;">مهلت: منقضی شده</span>')
+        
+        return format_html('<br>'.join(status_parts))
+    team_completion_status.short_description = 'وضعیت تکمیل'
+    
+    # Add to list_filter
+    list_filter = [
+        TeamBuildingStageFilter,  # Add this to existing filters
+        'team_building_stage',
+        # ... other existing filters
+    ]
+    
+    # Add actions
+    def enable_formation_for_stage(self, request, queryset):
+        """Enable formation for selected teams' stages"""
+        stages = queryset.values_list('team_building_stage', flat=True).distinct()
+        
+        for stage in stages:
+            TeamBuildingSettings.objects.filter(
+                stage=stage, control_type='formation'
+            ).update(is_enabled=True)
+        
+        self.message_user(request, f'تشکیل تیم برای مراحل {list(stages)} فعال شد')
+    enable_formation_for_stage.short_description = 'فعال کردن تشکیل تیم برای این مراحل'
+    
+    def disable_formation_for_stage(self, request, queryset):
+        """Disable formation for selected teams' stages"""
+        stages = queryset.values_list('team_building_stage', flat=True).distinct()
+        
+        for stage in stages:
+            TeamBuildingSettings.objects.filter(
+                stage=stage, control_type='formation'
+            ).update(is_enabled=False)
+        
+        self.message_user(request, f'تشکیل تیم برای مراحل {list(stages)} غیرفعال شد')
+    disable_formation_for_stage.short_description = 'غیرفعال کردن تشکیل تیم برای این مراحل'
+    
+    actions = [
+        'enable_formation_for_stage',
+        'disable_formation_for_stage',
+        # ... other existing actions
+    ]
+
+
+# Create a comprehensive admin dashboard view
+class TeamBuildingDashboard:
+    """
+    Additional admin dashboard information
+    You can add this as a custom admin view
+    """
+    
+    @staticmethod
+    def get_dashboard_stats():
+        """Get comprehensive team building statistics"""
+        from django.db.models import Count, Q
+        
+        stats = {}
+        
+        # Stage statistics
+        for stage in [1, 2, 3, 4]:
+            teams = models.Team.objects.filter(team_building_stage=stage)
+            
+            stats[f'stage_{stage}'] = {
+                'total_teams': teams.count(),
+                'complete_teams': teams.annotate(
+                    member_count=Count('requests', filter=Q(requests__status='A', requests__request_type='JOIN'))
+                ).filter(member_count__gte=2).count(),
+                'formation_enabled': TeamBuildingSettings.is_stage_formation_enabled(stage),
+                'page_enabled': TeamBuildingSettings.is_stage_page_enabled(stage)
+            }
+        
+        # Users without teams
+        stats['users_without_teams'] = User.objects.exclude(
+            team_requests__status='A',
+            team_requests__request_type='JOIN'
+        ).count()
+        
+        # Pending invitations
+        stats['pending_invitations'] = models.TeamRequest.objects.filter(
+            status='W',
+            request_type='INVITE'
+        ).count()
+        
+        return stats
 
 
 try:
