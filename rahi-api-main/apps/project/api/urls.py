@@ -15,6 +15,13 @@ from apps.project.api.views.team_admin import (
 )
 from apps.project import reports
 from apps.project.api.views import project, tag, project_status, attraction #, team
+from apps.project.api.views.team_admin import (
+    TeamBuildingSettingsViewSet,
+    TeamBuildingStageDescriptionViewSet,
+    TeamBuildingControlView,
+    UnstableTeamExportImportView
+)
+from apps.project.api.views.team_invitations import EnhancedTeamInvitationViewSet
 
 app_name = "project"
 
@@ -212,6 +219,95 @@ urlpatterns = [
         path('admin/teams/statistics/', TeamAdminManagementViewSet.as_view({
         'get': 'get_statistics'
         }), name='admin-team-statistics'),
+
+        
+        # === TEAM BUILDING ADMIN CONTROL SYSTEM ===
+        
+        # 12-stage control system
+        path('admin/team-building-settings/', TeamBuildingSettingsViewSet.as_view({
+                'get': 'list',
+                'post': 'create'
+        }), name='team-building-settings'),
+        
+        path('admin/team-building-settings/<int:pk>/', TeamBuildingSettingsViewSet.as_view({
+                'get': 'retrieve',
+                'put': 'update', 
+                'patch': 'partial_update',
+                'delete': 'destroy'
+        }), name='team-building-settings-detail'),
+        
+        # Get all 12 controls in organized format
+        path('admin/team-building-settings/all-controls/', 
+                TeamBuildingSettingsViewSet.as_view({'get': 'get_all_controls'}),
+                name='all-team-building-controls'),
+        
+        # Bulk update multiple controls
+        path('admin/team-building-settings/bulk-update/', 
+                TeamBuildingSettingsViewSet.as_view({'post': 'bulk_update_controls'}),
+                name='bulk-update-controls'),
+        
+        # Get specific stage status
+        path('admin/team-building-settings/stage-status/<int:stage>/', 
+                TeamBuildingSettingsViewSet.as_view({'get': 'get_stage_status'}),
+                name='stage-status'),
+        
+        # === STAGE DESCRIPTIONS MANAGEMENT ===
+        
+        path('admin/stage-descriptions/', TeamBuildingStageDescriptionViewSet.as_view({
+                'get': 'list',
+                'post': 'create'
+        }), name='stage-descriptions'),
+        
+        path('admin/stage-descriptions/<int:pk>/', TeamBuildingStageDescriptionViewSet.as_view({
+                'get': 'retrieve',
+                'put': 'update',
+                'patch': 'partial_update', 
+                'delete': 'destroy'
+        }), name='stage-descriptions-detail'),
+        
+        # Get all descriptions in organized format
+        path('admin/stage-descriptions/all-descriptions/',
+                TeamBuildingStageDescriptionViewSet.as_view({'get': 'get_all_descriptions'}),
+                name='all-stage-descriptions'),
+        
+        # === USER-FACING CONTROL API ===
+        
+        # Simple API for frontend to check what's enabled
+        path('team-building-controls/', TeamBuildingControlView.as_view(), name='team-building-controls'),
+        
+        # === ENHANCED TEAM INVITATIONS ===
+        
+        # Enhanced invitation with repeat teammate validation
+        path('team-building/invite-with-validation/',
+                EnhancedTeamInvitationViewSet.as_view({'post': 'invite_user_with_validation'}),
+                name='invite-with-validation'),
+        
+        # Get available users for invitation
+        path('team-building/available-users/',
+                EnhancedTeamInvitationViewSet.as_view({'get': 'get_available_users'}),
+                name='available-users'),
+        
+        # Check if invitation is valid before sending
+        path('team-building/check-invitation-validity/',
+                EnhancedTeamInvitationViewSet.as_view({'post': 'check_invitation_validity'}),
+                name='check-invitation-validity'),
+        
+        # === UNSTABLE TEAM EXPORT/IMPORT ===
+        
+        # Export unstable teams to Excel
+        path("admin/unstable-teams/export/",
+                UnstableTeamExportImportView.as_view({"get": "export_unstable_teams"}),
+                name="export-unstable-teams",),
+        
+        # Import teams from Excel
+        path("admin/unstable-teams/import/",
+                UnstableTeamExportImportView.as_view({"post": "import_unstable_teams"}),
+                name="import-unstable-teams"),
+        
+        # Auto-complete unstable teams
+        path("admin/unstable-teams/auto-complete/",
+                UnstableTeamExportImportView.as_view({"post": "auto_complete_unstable_teams"}),
+                name="auto-complete-unstable-teams"),
 
         ])),
     ]

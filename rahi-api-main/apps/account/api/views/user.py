@@ -308,9 +308,13 @@ class MirrorFeedbackListAV(ListAPIView):
     permission_classes = [permissions.AllowAny]
 
     def get_permissions(self):
-        if getattr(self.request, "method", "GET").upper() == "POST":
+        # if getattr(self.request, "method", "GET").upper() == "POST":
+        #     return [permissions.IsAuthenticated()]
+        # return [permissions.AllowAny()]
+        if self.request.method == "POST":
             return [permissions.IsAuthenticated()]
         return [permissions.AllowAny()]
+    
     permission_classes = [permissions.IsAuthenticated]
     schema = TaggedAutoSchema(tags=["User"])
     serializer_class = serializer.PeerFeedbackPublicSerializer
@@ -335,31 +339,38 @@ class MirrorFeedbackListAV(ListAPIView):
             .order_by("-created_at")
         )
 
+    def _are_teammates(self, me_id, target_id) -> bool:
+        my_team_ids = TeamRequest.objects.filter(user_id=me_id, status="A").values_list("team_id", flat=True)
+        return TeamRequest.objects.filter(user_id=target_id, status="A", team_id__in=my_team_ids).exists()
+
     @extend_schema(
-        # summary="Create a peer feedback (Mirror) for a user",
+        # summary="List public Mirror feedback for a user",
+        tags=["User"],
+        parameters=[OpenApiParameter(name="id", type=str, location=OpenApiParameter.PATH)],
+        responses={200: serializer.PeerFeedbackPublicSerializer},
+    )
+    def get(self, request, id):
+        # existing code unchanged …
+        qs = PeerFeedback.objects.filter(to_user_id=id, is_public=True).order_by("-created_at")
+        return Response(self.serializer_class(qs, many=True, context={"request": request}).data, status=status.HTTP_200_OK)
+
+    @extend_schema(
+        # summary="Create Mirror feedback for a teammate",
         tags=["User"],
         request=serializer.PeerFeedbackCreateSerializer,
         responses={201: OpenApiResponse(response=serializer.PeerFeedbackPublicSerializer)},
-        description="Authenticated users can leave peer feedback on another user's profile. "
-                    "The created item may be hidden later by admin via Django admin.",
+        parameters=[OpenApiParameter(name="id", type=str, location=OpenApiParameter.PATH)],
     )
-    def post(self, request, *args, **kwargs):
-        target_id = self.kwargs["id"]
-        target = get_object_or_404(User, id=target_id, is_active=True)
-        if str(request.user.id) == str(target.id):
-            return Response({"detail": "نمی‌توانید برای خودتان نظر ثبت کنید."},
-                            status=status.HTTP_400_BAD_REQUEST)
+    def post(self, request, id):
+        if not self._are_teammates(request.user.id, id):
+            return Response({"detail": "فقط هم‌تیمی‌ها می‌توانند آیینه‌شو ثبت کنند."}, status=status.HTTP_403_FORBIDDEN)
 
-        create_ser = serializer.PeerFeedbackCreateSerializer(data=request.data)
-        create_ser.is_valid(raise_exception=True)
-
-        obj = PeerFeedback.objects.create(
-            to_user=target,
-            author=request.user,
-            **create_ser.validated_data
-        )
+        ser = serializer.PeerFeedbackCreateSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        obj = ser.save(author=request.user, to_user_id=id)
         out = serializer.PeerFeedbackPublicSerializer(obj, context={"request": request}).data
         return Response(out, status=status.HTTP_201_CREATED)
+
 
 # class MirrorFeedbackListAV(APIView):
 #     permission_classes = [permissions.IsAuthenticated]
