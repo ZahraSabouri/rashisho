@@ -33,38 +33,48 @@ def validate_ticket_file(value):
         raise ValidationError("نوع فایل غیرمجاز است.")
 
 
-class Notification(BaseModel):
+class Announcement(BaseModel):  # Previously Notification
     title = models.CharField(max_length=255, verbose_name="عنوان")
     description = models.TextField(verbose_name="توضیحات")
-    image = models.ImageField(upload_to="notifications/images", verbose_name="تصویر")
+    image = models.ImageField(upload_to="announcements/images", verbose_name="تصویر")
     is_active = models.BooleanField(default=False, verbose_name="فعال؟")
+    target_users = models.ManyToManyField(settings.AUTH_USER_MODEL, blank=True, verbose_name="کاربران هدف")
 
     class Meta(BaseModel.Meta):
-        verbose_name = "اطلاعیه"
-        verbose_name_plural = "اطلاعیه ها"
+        verbose_name = "اعلان"
+        verbose_name_plural = "اعلانات"
 
     def __str__(self):
         return self.title
+    
+    def is_targeted_to_user(self, user):
+        if not self.target_users.exists():
+            return True  # No specific targeting = show to all users
+        return self.target_users.filter(id=user.id).exists()
 
 
-class NotificationReceipt(BaseModel):
-    notification = models.ForeignKey(Notification, on_delete=models.CASCADE, related_name="receipts")
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="notification_receipts")
-    acknowledged_at = models.DateTimeField(null=True, blank=True)
-    snoozed_until = models.DateTimeField(null=True, blank=True)
+class AnnouncementReceipt(BaseModel):  # Previously NotificationReceipt
+    announcement = models.ForeignKey(Announcement, on_delete=models.CASCADE, related_name="receipts")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="announcement_receipts")
+    acknowledged_at = models.DateTimeField(null=True, blank=True)  # "Got it"
+    snoozed_until = models.DateTimeField(null=True, blank=True)    # "Remind later"
 
     class Meta(BaseModel.Meta):
-        verbose_name = "وضعیت اعلان کاربر"
+        verbose_name = "وضعیت اعلان‌های کاربر"
         verbose_name_plural = "وضعیت اعلان‌های کاربران"
         constraints = [
-            models.UniqueConstraint(fields=["notification", "user"], name="unique_notification_receipt_per_user")
+            models.UniqueConstraint(fields=["announcement", "user"], name="unique_announcement_receipt_per_user")
         ]
 
     def is_suppressed_now(self) -> bool:
         """True if user has acknowledged or is currently snoozed."""
         if self.acknowledged_at:
-            return True
-        return bool(self.snoozed_until and self.snoozed_until > timezone.now())
+            return True  # User clicked "Got it" - never show again
+        
+        if self.snoozed_until and self.snoozed_until > timezone.now():
+            return True  # User is still in snooze period
+        
+        return False
 
 
 class CommonQuestions(models.Model):
@@ -201,8 +211,8 @@ class UserNotification(BaseModel):
     read_at = models.DateTimeField(null=True, blank=True)
 
     class Meta(BaseModel.Meta):
-        verbose_name = "اعلان کاربر"
-        verbose_name_plural = "اعلان‌های کاربر"
+        verbose_name = "آگهی کاربر"
+        verbose_name_plural = "آگهی‌های کاربر"
         indexes = [
             models.Index(fields=["user", "is_read", "-created_at"]),
         ]
@@ -215,14 +225,14 @@ class UserNotification(BaseModel):
             self.save(update_fields=["is_read", "read_at", "updated_at"])
 
 
-class Announcement(BaseModel):
-    title = models.CharField(max_length=200)
-    body  = models.TextField()
-    active = models.BooleanField(default=False)
+# class Announcement(BaseModel):
+#     title = models.CharField(max_length=200)
+#     body  = models.TextField()
+#     active = models.BooleanField(default=False)
 
-    class Meta(BaseModel.Meta):
-        verbose_name = "اعلان ورود"
-        verbose_name_plural = "اعلان‌های ورود"
+#     class Meta(BaseModel.Meta):
+#         verbose_name = "اعلان ورود"
+#         verbose_name_plural = "اعلان‌های ورود"
 
 class UserAnnouncementState(BaseModel):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)

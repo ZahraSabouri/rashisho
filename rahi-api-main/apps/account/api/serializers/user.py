@@ -7,7 +7,7 @@ from apps.settings.models import City
 from apps.project.models import TeamRequest
 
 from django.db.models import Q
-from apps.account.models import Connection
+from apps.account.models import Connection, User
 
 from django.db.models import Prefetch
 
@@ -99,17 +99,25 @@ class PublicProfileSerializer(serializers.ModelSerializer):
         )
 
     def get_contact(self, obj):
+        """Return contact info (email instead of telegram)"""
         viewer = self._viewer()
         if not viewer or not viewer.is_authenticated:
             return None
+            
         # Always see your own contact
         if viewer.id == obj.id:
-            return {"mobile_number": obj.mobile_number, "telegram_address": obj.telegram_address}
+            return {
+                "mobile_number": obj.mobile_number, 
+                "email": obj.email  # Changed from telegram_address
+            }
 
         conn = self._conn_between(viewer, obj)
         if conn and conn.status == "accepted":
-            # Requirement: once accepted, both sides see each other's phones. :contentReference[oaicite:6]{index=6}
-            return {"mobile_number": obj.mobile_number, "telegram_address": obj.telegram_address}
+            # Once accepted, both sides see each other's contact info
+            return {
+                "mobile_number": obj.mobile_number, 
+                "email": obj.email  # Changed from telegram_address
+            }
         return None
 
     def get_connection(self, obj):
@@ -164,7 +172,8 @@ class MeSerializer(serializers.ModelSerializer):
             "resume",
             "role",
             "email",
-            "telegram_address",
+            # "telegram_address",
+            "email",
             "is_accespted_terms",
             "my_permissions",
         ]
@@ -178,6 +187,22 @@ class MeSerializer(serializers.ModelSerializer):
         if attrs["gender"] == FEMALE:
             attrs["military_status"] = None
         return super().validate(attrs)
+    
+    def validate_email(self, value):
+        """Validate email format and uniqueness"""
+        if not value:
+            return value
+            
+        # Check uniqueness (excluding current user)
+        user_id = self.instance.id if self.instance else None
+        existing = User.objects.filter(email=value)
+        if user_id:
+            existing = existing.exclude(id=user_id)
+            
+        if existing.exists():
+            raise serializers.ValidationError("این ایمیل قبلاً استفاده شده است.")
+        
+        return value
 
     def update(self, instance, validated_data):
         email = validated_data.get("email", None)

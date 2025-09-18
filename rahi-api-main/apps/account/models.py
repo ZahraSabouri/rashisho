@@ -84,7 +84,20 @@ class User(BaseModel, AbstractUser, PermissionsMixin):
         related_name="users",
         verbose_name="انجمن",
     )
-    telegram_address = models.CharField(max_length=100, null=True, blank=True, verbose_name="آدرس تلگرام")
+    email = models.EmailField(
+        verbose_name="ایمیل", 
+        unique=True, 
+        null=True, 
+        blank=True,
+        help_text="ایمیل برای راه ارتباطی و دریافت اطلاعیه‌های مهم"
+    )
+    telegram_address = models.CharField(
+        max_length=100, 
+        verbose_name="آدرس تلگرام", 
+        null=True, 
+        blank=True,
+        help_text="منسوخ شده - از ایمیل استفاده کنید" 
+    )
 
     objects = BaseUserManager()
 

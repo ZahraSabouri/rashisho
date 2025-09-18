@@ -2,7 +2,10 @@ from django.contrib import admin
 
 from . import models
 
-admin.site.register(models.Notification)
+admin.site.register(models.Announcement) 
+admin.site.register(models.AnnouncementReceipt)    
+admin.site.register(models.UserNotification)
+# admin.site.register(models.Notification)
 admin.site.register(models.ContactInformation)
 admin.site.register(models.ContactUs)
 admin.site.register(models.CommonQuestions)
