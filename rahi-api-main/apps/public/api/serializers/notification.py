@@ -5,6 +5,7 @@ from rest_framework import serializers
 from rest_framework.serializers import Serializer, ModelSerializer, ListField, UUIDField
 
 from apps.public.models import Announcement, UserNotification, AnnouncementReceipt
+from typing import List, Optional
 
 User = get_user_model()
 
@@ -117,6 +118,47 @@ class UserNotificationOutSerializer(ModelSerializer):
             "is_read", "created_at", "read_at",
             "created_by",
         ]
+
+
+class UserNotificationCreateSerializer(serializers.ModelSerializer):
+    """
+    Application/Infrastructure: DRF Serializer (DTO) for *input*.
+    - Hides `user` from the request (we set it server-side, one per target).
+    - Accepts `target_users` (list of User UUIDs). Empty => all users.
+    Django/DRF ↔ .NET: Serializer ~ DTO / AutoMapper profile.
+    """
+    target_users = serializers.PrimaryKeyRelatedField(
+        queryset=User.objects.all(),
+        many=True,
+        required=False,
+        write_only=True,
+        help_text="خالی = برای همه کاربران"
+    )
+
+    # Make these read-only so they won't show up in the **request** schema
+    created_by = serializers.PrimaryKeyRelatedField(read_only=True)
+    is_read = serializers.BooleanField(read_only=True)
+    read_at = serializers.DateTimeField(read_only=True)
+    image = serializers.ImageField(required=False, allow_null=True)
+
+    class Meta:
+        model = UserNotification
+        # NOTE: no `user` in input fields
+        fields = [
+            "id", "title", "body", "kind", "payload", "url",
+            "target_users", "is_read", "read_at", "created_by",
+            "created_at", "updated_at",
+        ]
+        read_only_fields = ["id", "is_read", "read_at", "created_at", "updated_at", "created_by"]
+
+    def validate(self, attrs):
+        """
+        We don't persist `target_users` on the model. Stash it on the serializer instance
+        so the ViewSet can consume it after is_valid().
+        """
+        self._target_users: Optional[List[User]] = attrs.pop("target_users", None)
+        return attrs
+
 
 
 class MarkReadSer(Serializer):

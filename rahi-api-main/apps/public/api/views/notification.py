@@ -17,11 +17,13 @@ from apps.public.api.serializers.notification import (
     AnnouncementOutSerializer,
     UserNotificationSerializer,
     UserNotificationOutSerializer,
+    UserNotificationCreateSerializer,
     SnoozeSer,
     MarkReadSer,
 )
 
 User = get_user_model()
+
 
 class AnnouncementViewSet(viewsets.ModelViewSet):
     schema = TaggedAutoSchema(tags=["Announcements"])
@@ -54,7 +56,6 @@ class AnnouncementViewSet(viewsets.ModelViewSet):
         page = self.paginate_queryset(qs)
         ser = self.get_serializer(page or qs, many=True)
         return self.get_paginated_response(ser.data) if page is not None else Response(ser.data, status=200)
-
 
     @extend_schema(
         tags=["Announcements"],
@@ -89,12 +90,12 @@ class AnnouncementViewSet(viewsets.ModelViewSet):
     def admin_receipts(self, request):
         """Admin: Get all announcement receipts with pagination"""
         user_id = request.query_params.get('user_id')
-        
+
         queryset = AnnouncementReceipt.objects.select_related('announcement', 'user').order_by('-created_at')
-        
+
         if user_id:
             queryset = queryset.filter(user_id=user_id)
-        
+
         # Apply pagination
         page = self.paginate_queryset(queryset)
         if page is not None:
@@ -117,21 +118,21 @@ class AnnouncementViewSet(viewsets.ModelViewSet):
                     "created_at": receipt.created_at,
                 })
             return self.get_paginated_response(data)
-        
+
         # Fallback if pagination fails
         return Response({"results": [], "count": 0})
 
     def create(self, request, *args, **kwargs):
         if not request.user.is_staff:
-            return Response({"detail": "فقط ادمین می‌تواند اعلان ایجاد کند."}, 
-                        status=status.HTTP_403_FORBIDDEN)
-        
+            return Response({"detail": "فقط ادمین می‌تواند اعلان ایجاد کند."},
+                            status=status.HTTP_403_FORBIDDEN)
+
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        
+
         # Create the announcement
         announcement = serializer.save()
-        
+
         # Handle target users (ManyToMany relationship)
         target_users = request.data.get('target_users', [])
         if target_users:
@@ -140,7 +141,7 @@ class AnnouncementViewSet(viewsets.ModelViewSet):
         else:
             # Empty target_users means "for all users"
             message = "اعلان برای همه کاربران ایجاد شد."
-        
+
         return Response(
             {
                 "announcement": AnnouncementOutSerializer(announcement, context={'request': request}).data,
@@ -160,13 +161,13 @@ class AnnouncementViewSet(viewsets.ModelViewSet):
     def admin_all(self, request):
         """Admin: Get all announcements with targeting details"""
         user_id = request.query_params.get('user_id')
-        
+
         queryset = self.get_queryset().prefetch_related('target_users').order_by('-created_at')
-        
+
         if user_id:
             # Filter to announcements that target this specific user (or all users)
             queryset = queryset.filter(Q(target_users__id=user_id) | Q(target_users__isnull=True))
-        
+
         # Apply pagination
         page = self.paginate_queryset(queryset)
         if page is not None:
@@ -185,7 +186,7 @@ class AnnouncementViewSet(viewsets.ModelViewSet):
                     "acknowledged_count": announcement.receipts.filter(acknowledged_at__isnull=False).count(),
                 })
             return self.get_paginated_response(data)
-        
+
         return Response({"results": [], "count": 0})
 
     @extend_schema(
@@ -218,7 +219,7 @@ class AnnouncementViewSet(viewsets.ModelViewSet):
         serializer = SnoozeSer(data=request.data)
         serializer.is_valid(raise_exception=True)
         minutes = serializer.validated_data["minutes"]
-        
+
         receipt, _ = AnnouncementReceipt.objects.get_or_create(
             announcement=announcement, user=request.user
         )
@@ -240,7 +241,7 @@ class NotificationViewSet(viewsets.ModelViewSet):
         return UserNotification.objects.filter(user=self.request.user).order_by("-created_at")
 
     def get_serializer_class(self):
-        return UserNotificationSerializer if self.action == "create" else UserNotificationOutSerializer
+        return UserNotificationCreateSerializer if self.action == "create" else UserNotificationOutSerializer
 
     def get_permissions(self):
         if self.action in ["create", "admin_all", "admin_user_notifications", "by_creators"]:
@@ -294,12 +295,12 @@ class NotificationViewSet(viewsets.ModelViewSet):
     @action(methods=["get"], detail=False, url_path="admin/all", permission_classes=[permissions.IsAdminUser])
     def admin_all(self, request):
         user_id = request.query_params.get('user_id')
-        
+
         queryset = UserNotification.objects.select_related('user').order_by('-created_at')
-        
+
         if user_id:
             queryset = queryset.filter(user_id=user_id)
-        
+
         # Apply pagination
         page = self.paginate_queryset(queryset)
         if page is not None:
@@ -321,7 +322,7 @@ class NotificationViewSet(viewsets.ModelViewSet):
                     }
                 })
             return self.get_paginated_response(data)
-        
+
         return Response({"results": [], "count": 0})
 
     @extend_schema(
@@ -336,14 +337,14 @@ class NotificationViewSet(viewsets.ModelViewSet):
         user_id = request.query_params.get('user_id')
         if not user_id:
             return Response({"detail": "پارامتر user_id الزامی است."}, status=status.HTTP_400_BAD_REQUEST)
-        
+
         try:
             user = User.objects.get(id=user_id)
         except User.DoesNotExist:
             return Response({"detail": "کاربر پیدا نشد."}, status=status.HTTP_404_NOT_FOUND)
-        
+
         queryset = UserNotification.objects.filter(user=user).order_by('-created_at')
-        
+
         # Apply pagination
         page = self.paginate_queryset(queryset)
         if page is not None:
@@ -355,62 +356,55 @@ class NotificationViewSet(viewsets.ModelViewSet):
                 "mobile": user.user_info.get('mobile_number', ''),
             }
             return Response(response_data)
-        
+
         return Response({"results": [], "count": 0})
 
+    @extend_schema(
+        tags=["Notifications"],
+        description="Create notifications for specific users (target_users) or for ALL users when empty.",
+        request=UserNotificationCreateSerializer,
+        responses={201: OpenApiResponse(response=None)},
+    )
     def create(self, request, *args, **kwargs):
         if not request.user.is_staff:
-            return Response({"detail": "فقط ادمین می‌تواند آگهی ایجاد کند."}, 
-                        status=status.HTTP_403_FORBIDDEN)
-        
-        serializer = UserNotificationSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        
-        # Get target users
-        target_users = request.data.get('target_users', [])
-        
-        if target_users:
-            # Create notifications for specific users
-            users = User.objects.filter(id__in=target_users)
-            created_count = 0
-            for user in users:
-                UserNotification.objects.create(
-                    user=user,
-                    title=serializer.validated_data['title'],
-                    body=serializer.validated_data['body'],
-                    kind=serializer.validated_data.get('kind', 'info'),
-                    payload=serializer.validated_data.get('payload', {}),
-                    url=serializer.validated_data.get('url', ''),
-                    created_by=request.user,
-                )
-                created_count += 1
-            message = f"آگهی برای {created_count} کاربر ایجاد شد."
-        else:
-            # Create notifications for ALL users
-            all_users = User.objects.all()
-            created_count = 0
-            for user in all_users:
-                UserNotification.objects.create(
-                    user=user,
-                    title=serializer.validated_data['title'],
-                    body=serializer.validated_data['body'],
-                    kind=serializer.validated_data.get('kind', 'info'),
-                    payload=serializer.validated_data.get('payload', {}),
-                    url=serializer.validated_data.get('url', ''),
-                    created_by=request.user,
-                )
-                created_count += 1
-            message = f"آگهی برای همه کاربران ({created_count} نفر) ایجاد شد."
-        
+            return Response({"detail": "فقط ادمین می‌تواند آگهی ایجاد کند."},
+                            status=status.HTTP_403_FORBIDDEN)
+
+        ser = self.get_serializer(data=request.data, context={"request": request})
+        ser.is_valid(raise_exception=True)
+
+        # pull validated fields for the model (no `user` here)
+        base = {
+            "title": ser.validated_data["title"],
+            "body": ser.validated_data.get("body", ""),
+            "kind": ser.validated_data.get("kind", "info"),
+            "payload": ser.validated_data.get("payload", {}),
+            "url": ser.validated_data.get("url", ""),
+            "created_by": request.user,
+        }
+
+        targets = getattr(ser, "_target_users", None)
+        if targets is None or len(targets) == 0:
+            targets = User.objects.all()
+
+        created_count = 0
+        bulk = []
+        now = timezone.now()
+        for u in targets:
+            bulk.append(UserNotification(
+                user=u,
+                created_at=now,  # optional; DB default may handle this
+                **base
+            ))
+            created_count += 1
+
+        UserNotification.objects.bulk_create(bulk, batch_size=500)
+
         return Response(
             {
-                "message": message,
+                "message": f"آگهی برای {('همه کاربران' if request.data.get('target_users') in [None, [], ''] else f'{created_count} کاربر')} ایجاد شد.",
                 "created_count": created_count,
-                "notification_sample": {
-                    "title": serializer.validated_data['title'],
-                    "body": serializer.validated_data['body'],
-                    "kind": serializer.validated_data.get('kind', 'info'),
-                }
+                "sample": {k: base[k] for k in ["title", "body", "kind"]},
             },
             status=status.HTTP_201_CREATED
         )
@@ -436,18 +430,18 @@ class NotificationViewSet(viewsets.ModelViewSet):
         serializer = MarkReadSer(data=request.data)
         serializer.is_valid(raise_exception=True)
         ids = serializer.validated_data["ids"]
-        
+
         updated_count = (
             self.get_queryset()
             .filter(id__in=ids, is_read=False)
             .update(is_read=True, read_at=timezone.now())
         )
-        
+
         return Response(
             {"message": f"{updated_count} آگهی به عنوان خوانده شده علامت‌گذاری شد."},
             status=status.HTTP_200_OK
         )
-    
+
     @extend_schema(
         tags=["Notifications"],
         parameters=[
@@ -464,28 +458,26 @@ class NotificationViewSet(viewsets.ModelViewSet):
         else:
             # Regular user sees only their notifications
             queryset = UserNotification.objects.filter(user=request.user).order_by("-created_at")
-        
+
         unread = str(request.query_params.get("unread", "")).lower() in ("1", "true", "t", "yes")
         if unread:
             queryset = queryset.filter(is_read=False)
-        
+
         paginator = Pagination()
         page = paginator.paginate_queryset(queryset, request)
         serializer = UserNotificationOutSerializer(page, many=True, context={"request": request})
         return paginator.get_paginated_response(serializer.data)
 
-
         """Mark multiple notifications as read"""
         serializer = MarkReadSer(data=request.data)
         serializer.is_valid(raise_exception=True)
         ids = serializer.validated_data["ids"]
-        
+
         updated = UserNotification.objects.filter(
             user=request.user, id__in=ids, is_read=False
         ).update(is_read=True, read_at=timezone.now())
-        
-        return Response({"updated": updated}, status=status.HTTP_200_OK)
 
+        return Response({"updated": updated}, status=status.HTTP_200_OK)
 
         """Get count of unread notifications"""
         count = UserNotification.objects.filter(user=request.user, is_read=False).count()

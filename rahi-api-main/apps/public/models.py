@@ -4,6 +4,7 @@ from django.conf import settings
 from django.db import models
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
+from uuid import uuid4
 
 from apps.common.models import BaseModel
 from apps.utils.utility import mobile_validator
@@ -11,6 +12,9 @@ from apps.utils.utility import mobile_validator
 Ticket_STATUS = [("OPEN", "open"), ("CLOSED", "closed")]
 USER_ROLE = [("ADMIN", "admin"), ("USER", "user")]
 
+def notif_upload_to(instance, filename):
+    # e.g. media/notifications/2025/09/<uuid>__filename.jpg
+    return f"notifications/{instance.created_at:%Y/%m}/{uuid4()}__{filename}"
 
 def validate_ticket_file(value):
     valid_types = [
@@ -212,6 +216,7 @@ class Comment(BaseModel):
         return f"{self.user.full_name} | {self.ticket.get_status_display()}"
 
 
+
 class UserNotification(BaseModel):
     KINDS = [
         ("TEAM_INVITE", "دعوت تیم"),
@@ -225,6 +230,7 @@ class UserNotification(BaseModel):
     url = models.CharField(max_length=500, blank=True)
     is_read = models.BooleanField(default=False)
     read_at = models.DateTimeField(null=True, blank=True)
+    image = models.ImageField(upload_to=notif_upload_to, null=True, blank=True)
 
     class Meta(BaseModel.Meta):
         verbose_name = "آگهی کاربر"
