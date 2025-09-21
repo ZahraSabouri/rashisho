@@ -33,4 +33,7 @@ urlpatterns = [
     path("messages/mark-read/", messages.MarkReadAV.as_view(), name="dm-mark-read"),
     path("messages/unread-count/", messages.UnreadCountAV.as_view(), name="dm-unread-count"),
     path("messages/chats/", messages.ChatsAV.as_view(), name="dm-chats"),
+    path("messages/thread/", messages.ThreadAV.as_view(), name="dm-thread"),
+    path("messages/thread/", messages.ThreadAV.as_view(), name="dm-thread"),
+    path("messages/threads/", messages.ThreadsMultiAV.as_view(), name="dm-threads"),
 ]

@@ -7,12 +7,10 @@ class PostImageSerializer(serializers.ModelSerializer):
         model = PostImage
         fields = ["id", "image", "created_at", "updated_at"]
 
-    def validate(self, attrs):
-        post = self.context.get("post")
-        if post and post.images.count() >= 10:
-            raise serializers.ValidationError({"image": "حداکثر ۱۰ تصویر مجاز است."})
-        return attrs
-
+    def to_representation(self, instance):
+        rep = super().to_representation(instance)
+        rep["image"] = instance.image.url if instance.image else None
+        return rep
 
 class PostSerializer(serializers.ModelSerializer):
     images = PostImageSerializer(many=True, read_only=True)
@@ -22,44 +20,29 @@ class PostSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Post
-        fields = [
-            "id",
-            "title",
-            "image",
-            "video",
-            "content",
-            "related_projects",
-            "images",
-            "created_at",
-            "updated_at",
-        ]
+        fields = ["id", "title", "image", "video", "content", "related_projects", "images", "created_at", "updated_at"]
 
     def validate_related_projects(self, value):
         if len(value) > 3:
             raise serializers.ValidationError("حداکثر ۳ پروژه مرتبط مجاز است.")
         return value
 
-    def to_representation(self, instance):
-        rep = super().to_representation(instance)
-        rep["image"] = instance.image.url if instance.image else None
-        rep["video"] = instance.video.url if instance.video else None
-        # lightweight project chip display (id/title) for FE
-        rep["related_projects"] = [{"id": str(p.id), "title": p.title} for p in instance.related_projects.all()]
-        return rep
+    def _apply_related_projects_from_context(self, post):
+        ids = self.context.get("related_project_ids")
+        if ids is not None:
+            post.related_projects.set(ids)
 
+    def create(self, validated_data):
+        # Pop to avoid double-setting (DRF handles when present; context covers multipart case)
+        validated_data.pop("related_projects", None)
+        post = Post.objects.create(**validated_data)
+        self._apply_related_projects_from_context(post)
+        return post
 
-class PostImageSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = PostImage
-        fields = ["id", "image", "created_at", "updated_at"]
-
-    def validate(self, attrs):
-        post = self.context.get("post")
-        if post and post.images.count() >= 10:
-            raise serializers.ValidationError({"image": "حداکثر ۱۰ تصویر مجاز است."})
-        return attrs
-
-    def to_representation(self, instance):
-        rep = super().to_representation(instance)
-        rep["image"] = instance.image.url if instance.image else None
-        return rep
+    def update(self, instance, validated_data):
+        validated_data.pop("related_projects", None)
+        for k, v in validated_data.items():
+            setattr(instance, k, v)
+        instance.save()
+        self._apply_related_projects_from_context(instance)
+        return instance

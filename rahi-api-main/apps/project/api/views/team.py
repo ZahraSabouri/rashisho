@@ -85,6 +85,81 @@ class TeamRequestViewSet(TeamDeputyManagementViewSet, ModelViewSet):
         leave_request.delete()
         return Response({"message": "درخواست خروج لغو شد."}, status=status.HTTP_200_OK)
 
+    @action(methods=['GET'], detail=False, url_path='users-status')
+    def users_status(self, request):
+        user = request.user
+        
+        user_allocation = models.ProjectAllocation.objects.filter(user=user).first()
+        
+        if not user_allocation:
+            return Response(
+                {"message": "هنوز به شما پروژه ای اختصاص داده نشده است!"}, 
+                status=status.HTTP_200_OK
+            )
+        
+        # Check if user is team captain
+        user_team_request = models.TeamRequest.objects.filter(
+            user=user, 
+            status='A', 
+            user_role='C',
+            request_type='JOIN'
+        ).select_related('team').first()
+        
+        if not user_team_request:
+            # User has project but is not a team captain
+            # Return empty list or just their own status
+            return Response([], status=status.HTTP_200_OK)
+        
+        team = user_team_request.team
+        
+        # Get all users in the same project
+        project_allocations = models.ProjectAllocation.objects.filter(
+            project=user_allocation.project
+        ).exclude(user=user)
+        
+        users_data = []
+        
+        for allocation in project_allocations.select_related('user'):
+            target_user = allocation.user
+            
+            # Check if user has any team request
+            team_request = models.TeamRequest.objects.filter(
+                user=target_user,
+                status__in=['A', 'W']
+            ).select_related('team').first()
+            
+            # Determine status and role
+            team_request_status = None
+            user_role = None
+            
+            if team_request:
+                if team_request.status == 'A':
+                    # User is in a team
+                    if team_request.team == team:
+                        # User is in the captain's team
+                        team_request_status = 'accepted'
+                        user_role = team_request.user_role
+                    else:
+                        # User is in another team
+                        team_request_status = 'in_other_team'
+                elif team_request.status == 'W':
+                    # Pending invitation/proposal
+                    if team_request.team == team:
+                        team_request_status = 'pending'
+                        user_role = team_request.user_role
+                    else:
+                        team_request_status = 'pending_other_team'
+            
+            users_data.append({
+                'id': str(target_user.id),
+                'full_name': target_user.full_name,
+                'avatar': target_user.avatar.url if target_user.avatar else None,
+                'team_request_status': team_request_status,
+                'user_role': user_role
+            })
+        
+        return Response(users_data, status=status.HTTP_200_OK)
+
     @action(methods=['POST'], detail=False, url_path='approve-leave')
     def approve_leave_request(self, request):
         user = request.user

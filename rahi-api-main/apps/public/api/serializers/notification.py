@@ -101,7 +101,6 @@ class UserNotificationSerializer(ModelSerializer):
         return super().create(validated_data)
 
     def validate(self, attrs):
-        # Remove target_users from attrs as it's handled in the view
         if 'target_users' in attrs:
             self.target_users = attrs.pop('target_users')
         return attrs
