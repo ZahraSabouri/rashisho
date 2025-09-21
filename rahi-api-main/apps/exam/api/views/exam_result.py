@@ -12,8 +12,11 @@ from apps.exam.services import get_user_exam_status
 from apps.project.api.serializers.file_serializer import ImportFileSerializer
 from apps.resume.models import Resume
 
+from apps.api.schema import TaggedAutoSchema
+
 
 class ExamResultAPV(views.APIView):
+    schema = TaggedAutoSchema(tags=["Exam Results"])
     permission_classes = [IsSysgod | IsUser]
     serializer_class = exam_result.ExamResultSerializer
 

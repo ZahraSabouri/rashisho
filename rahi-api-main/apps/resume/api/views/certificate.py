@@ -8,8 +8,10 @@ from apps.resume import models
 from apps.resume.api.serializers import certificate
 from apps.resume.services import ResumeModelViewSet
 
+from apps.api.schema import TaggedAutoSchema
 
 class ResumeCertificateViewSet(ResumeModelViewSet):
+    schema = TaggedAutoSchema(tags=["Resume Certificate"])
     serializer_class = certificate.CertificateSerializer
     queryset = models.Certificate.objects.all()
     permission_classes = [IsAuthenticated, ResumeStepPermission]

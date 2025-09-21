@@ -1,31 +1,44 @@
 from rest_framework import serializers
 from django.db.models import Count, Q
+from slugify import slugify
 from apps.project import models
 
 
+
+class TagCategorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.TagCategory
+        fields = ["id", "code", "title"]
+
+
 class TagSerializer(serializers.ModelSerializer):
-    """
-    Basic tag serializer for CRUD operations.
-    Used for listing, creating, updating tags.
-    """
     project_count = serializers.SerializerMethodField()
     category_display = serializers.CharField(source='get_category_display', read_only=True)
-    
+    # category_obj = TagCategorySerializer(source="category_ref", read_only=True)
+    category_id = serializers.UUIDField(required=False, allow_null=True, write_only=True)
+    category = serializers.CharField(required=False, allow_blank=True)
+
+
     class Meta:
         model = models.Tag
-        exclude = ["deleted", "deleted_at", "created_at", "updated_at"]
+        fields = [
+            "id", "name", "description",
+            "category",         # legacy short code mirror (<=10)
+            "category_id",      # write-only convenience
+            "category_ref",     # read-only FK (if you expose it)
+            "category_display",
+            "project_count"
+        ]
+        # exclude = ["deleted", "deleted_at", "created_at", "updated_at"]
         read_only_fields = ['id', 'created_at', 'updated_at']
     
     def get_project_count(self, obj):
-        """Return number of projects using this tag"""
         return obj.projects.filter(visible=True).count()
     
     def validate_name(self, value):
-        """Clean and validate tag name"""
         if not value:
             raise serializers.ValidationError("نام تگ الزامی است")
         
-        # Clean the name
         value = value.strip().lower()
         
         if len(value) < 2:
@@ -34,7 +47,6 @@ class TagSerializer(serializers.ModelSerializer):
         if len(value) > 100:
             raise serializers.ValidationError("نام تگ نمی‌تواند بیش از 100 کاراکتر باشد")
         
-        # Check for invalid characters (optional - customize as needed)
         if not value.replace('-', '').replace('_', '').replace(' ', '').isalnum():
             raise serializers.ValidationError("نام تگ فقط می‌تواند شامل حروف، اعداد، خط تیره و زیرخط باشد")
             
@@ -47,38 +59,107 @@ class TagSerializer(serializers.ModelSerializer):
         
         return value
 
+    def _resolve_category(self, attrs):
+        cat = None
+        cat_id = attrs.pop("category_id", None)
+        cat_str = attrs.get("category")
+
+        if cat_id:
+            try:
+                cat = models.TagCategory.objects.get(id=cat_id)
+            except models.TagCategory.DoesNotExist:
+                raise serializers.ValidationError({"category_id": "Invalid category_id."})
+        elif cat_str:
+            cat = (
+                models.TagCategory.objects.filter(code__iexact=cat_str).first()
+                or models.TagCategory.objects.filter(title__iexact=cat_str).first()
+            )
+            if not cat:
+                raise serializers.ValidationError({"category": "No TagCategory matches this code/title."})
+
+        if cat:
+            code = (cat.code or "").strip()
+            if len(code) > 10:
+                raise serializers.ValidationError(
+                    {"category": "Category code is longer than 10 chars; cannot mirror into Tag.category(10)."}
+                )
+            return cat, code
+        return None, attrs.get("category", "")
+
+    def create(self, validated_data):
+        cat, code = self._resolve_category(validated_data)
+        if cat:
+            validated_data["category_ref"] = cat
+            validated_data["category"] = code  # mirror short code, not UUID
+        return models.Tag.objects.create(**validated_data)
+
+    def update(self, instance, validated_data):
+        cat, code = self._resolve_category(validated_data)
+        for k, v in validated_data.items():
+            setattr(instance, k, v)
+        if cat:
+            instance.category_ref = cat
+            instance.category = code
+        instance.save()
+        return instance
 
 class TagCreateSerializer(serializers.ModelSerializer):
-    """
-    Serializer for creating new tags.
-    Simplified version for creation form.
-    """
+    category = serializers.CharField(required=False)        
+    category_id = serializers.UUIDField(required=False) 
+
     class Meta:
         model = models.Tag
-        fields = ["name", "description"]
+        fields = ["name", "description", "category", "category_id"]
+
+    def validate(self, attrs):
+        if not attrs.get("category_id") and not attrs.get("category"):
+            raise serializers.ValidationError({"category": "category or category_id is required"})
+        return attrs
     
+    def _resolve_category(self, data):
+        from django.utils.text import slugify
+        if data.get("category_id"):
+            return models.TagCategory.objects.get(id=data["category_id"])
+        raw = (data.get("category") or "").strip()
+        if not raw:
+            raise serializers.ValidationError({"category": "category or category_id is required"})
+        cat = (models.TagCategory.objects.filter(code__iexact=raw).first() or
+               models.TagCategory.objects.filter(title__iexact=raw).first())
+        return cat or models.TagCategory.objects.create(code=slugify(raw), title=raw)
+
     def validate_name(self, value):
-        """Same validation as TagSerializer"""
-        return TagSerializer().validate_name(value)
+        value = value.strip().lower()
+        if len(value) < 2:
+            raise serializers.ValidationError("نام تگ باید حداقل ۲ کاراکتر باشد.")
+        if models.Tag.objects.filter(name__iexact=value).exists():
+            raise serializers.ValidationError("تگ با این نام وجود دارد.")
+        return value
+
+    def create(self, validated_data):
+        cat = self._resolve_category(validated_data)
+        max_len = models.Tag._meta.get_field("category").max_length  # e.g., 10 in DB now
+        code = (cat.code or "")
+        if len(code) > max_len:
+            raise serializers.ValidationError(
+                {"category": f"Category code '{code}' exceeds Tag.category({max_len})."}
+            )
+        return models.Tag.objects.create(
+            name=validated_data["name"].strip().lower(),
+            description=(validated_data.get("description") or ""),
+            category_ref=cat,
+            category=code,
+        )
 
 
 class ProjectTagSerializer(serializers.ModelSerializer):
-    """
-    Lightweight serializer for tags when displayed within project context.
-    Used in project detail views and related project suggestions.
-    """
-    category_display = serializers.CharField(source='get_category_display', read_only=True)
-    
+    category_display = serializers.CharField(source="get_category_display", read_only=True)
+
     class Meta:
         model = models.Tag
         fields = ["id", "name", "category", "category_display", "description"]
 
 
 class RelatedProjectSerializer(serializers.ModelSerializer):
-    """
-    Serializer for projects suggested based on shared tags.
-    Includes additional fields showing relationship strength.
-    """
     shared_tags_count = serializers.IntegerField(read_only=True)
     common_tags = ProjectTagSerializer(many=True, read_only=True, source='tags')
     
@@ -90,7 +171,6 @@ class RelatedProjectSerializer(serializers.ModelSerializer):
         ]
     
     def to_representation(self, instance):
-        """Add media URLs to representation"""
         rep = super().to_representation(instance)
         rep["image"] = instance.image.url if instance.image else None
         
@@ -103,67 +183,73 @@ class RelatedProjectSerializer(serializers.ModelSerializer):
         return rep
 
 
+class InlineTagCreateSerializer(serializers.Serializer):
+    name = serializers.CharField(max_length=100)
+    category = serializers.CharField(required=False)
+    category_id = serializers.UUIDField(required=False)
+    description = serializers.CharField(allow_blank=True, required=False)
+
+    def validate_name(self, value):
+        return TagSerializer().validate_name(value)
+
+
 class ProjectTagUpdateSerializer(serializers.ModelSerializer):
-    """
-    Serializer for updating project tags.
-    Handles adding/removing tags from projects.
-    """
-    tag_ids = serializers.ListField(
-        child=serializers.UUIDField(),
-        write_only=True,
-        required=False,
-        allow_empty=True,
-        help_text="فهرست IDهای تگ‌هایی که می‌خواهید به پروژه اضافه کنید"
-    )
-    tags = ProjectTagSerializer(many=True, read_only=True)
-    
+    tag_ids = serializers.ListField(child=serializers.UUIDField(), required=False)
+    new_tags = InlineTagCreateSerializer(many=True, required=False)
+    tags = TagSerializer(many=True, read_only=True)
+
     class Meta:
         model = models.Project
-        fields = ["id", "title", "tags", "tag_ids"]
+        fields = ["id", "title", "tags", "tag_ids", "new_tags"]
         read_only_fields = ["id", "title", "tags"]
+
+    def _resolve_category(self, item):
+        from django.utils.text import slugify
+        if item.get("category_id"):
+            return models.TagCategory.objects.get(id=item["category_id"])
+        raw = (item.get("category") or "KEYWORD").strip()
+        cat = models.TagCategory.objects.filter(code__iexact=raw).first() or \
+              models.TagCategory.objects.filter(title__iexact=raw).first()
+        if cat:
+            return cat
+        return models.TagCategory.objects.create(code=slugify(raw), title=raw)
+
+    def update(self, instance, validated_data):
+        tag_ids = validated_data.get("tag_ids") or []
+        new_tags_payload = validated_data.get("new_tags") or []
+
+        created_or_existing_ids = []
+        for item in new_tags_payload:
+            name = item["name"].strip().lower()
+            cat = self._resolve_category(item)
+            defaults = {
+                "description": item.get("description", "") or "",
+                "category": cat.code,
+                "category_ref": cat,
+            }
+            tag_obj, _ = models.Tag.objects.update_or_create(name=name, defaults=defaults)
+            created_or_existing_ids.append(tag_obj.id)
+
+        if tag_ids or created_or_existing_ids:
+            ids_to_set = set(tag_ids) | set(created_or_existing_ids)
+            instance.tags.set(models.Tag.objects.filter(id__in=ids_to_set))
+        else:
+            instance.tags.clear()
+
+        return instance
     
     def validate_tag_ids(self, value):
-        """Validate that all provided tag IDs exist"""
         if not value:
             return value
-        
-        # Remove duplicates while preserving order
         value = list(dict.fromkeys(value))
-        
-        # Check if all tags exist
-        existing_tags = models.Tag.objects.filter(id__in=value)
-        existing_ids = set(str(tag.id) for tag in existing_tags)
-        provided_ids = set(str(id) for id in value)
-        
-        if len(existing_ids) != len(provided_ids):
-            invalid_ids = provided_ids - existing_ids
-            raise serializers.ValidationError(
-                f"تگ‌های زیر یافت نشدند: {', '.join(invalid_ids)}"
-            )
-        
+        existing = models.Tag.objects.filter(id__in=value).values_list("id", flat=True)
+        missing = set(map(str, value)) - set(map(str, existing))
+        if missing:
+            raise serializers.ValidationError(f"Unknown tag ids: {', '.join(missing)}")
         return value
-    
-    def update(self, instance, validated_data):
-        """Update project tags"""
-        tag_ids = validated_data.pop('tag_ids', None)
-        
-        if tag_ids is not None:
-            if tag_ids:
-                # Set new tags
-                tags = models.Tag.objects.filter(id__in=tag_ids)
-                instance.tags.set(tags)
-            else:
-                # Clear all tags
-                instance.tags.clear()
-        
-        return super().update(instance, validated_data)
 
 
 class TagAnalyticsSerializer(serializers.ModelSerializer):
-    """
-    Detailed serializer for tag analytics.
-    Shows tag usage statistics and related information.
-    """
     project_count = serializers.IntegerField(read_only=True)
     visible_project_count = serializers.IntegerField(read_only=True)
     recent_projects = serializers.SerializerMethodField()
@@ -173,6 +259,5 @@ class TagAnalyticsSerializer(serializers.ModelSerializer):
         exclude = ["deleted", "deleted_at"]
     
     def get_recent_projects(self, obj):
-        """Get recent projects using this tag"""
         recent = obj.projects.filter(visible=True).order_by('-created_at')[:5]
         return [{"id": str(p.id), "title": p.title, "company": p.company} for p in recent]

@@ -16,8 +16,10 @@ from apps.exam.api.serializers import neo
 from apps.exam.services import check_user_next_question, get_question, user_neo_score
 from apps.utils.utility import CustomModelViewSet
 
+from apps.api.schema import TaggedAutoSchema
 
 class NeoQuestionViewSet(CustomModelViewSet):
+    schema = TaggedAutoSchema(tags=["Exam Neo"])
     serializer_class = neo.NeoQuestionSerializer
     queryset = models.NeoQuestion.objects.all().order_by("number")
     permission_classes = [IsAdminOrReadOnlyPermission, NeoPermission]
@@ -84,6 +86,7 @@ class NeoQuestionViewSet(CustomModelViewSet):
 
 
 class NeoOptionViewSet(ModelViewSet):
+    schema = TaggedAutoSchema(tags=["Exam Neo"])
     serializer_class = neo.NeoOptionSerializer
     queryset = models.NeoOption.objects.all().order_by("option_number")
     permission_classes = [IsAdminOrReadOnlyPermission, NeoPermission]
@@ -98,6 +101,7 @@ class NeoOptionViewSet(ModelViewSet):
 
 
 class NeoUserAnswerViewSet(GenericViewSet, CreateModelMixin, ListModelMixin):
+    schema = TaggedAutoSchema(tags=["Exam Neo"])
     serializer_class = neo.NeoUserAnswerSerializer
     permission_classes = [ResumeFinishedPermission]
 
@@ -132,6 +136,7 @@ class NeoUserAnswerViewSet(GenericViewSet, CreateModelMixin, ListModelMixin):
 
 
 class NeoFinishedUsersCount(APIView):
+    schema = TaggedAutoSchema(tags=["Exam Neo"])
     permission_classes = [IsSysgod | IsUser]
 
     def get(self, request):

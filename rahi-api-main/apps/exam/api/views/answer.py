@@ -4,8 +4,11 @@ from rest_framework.viewsets import ReadOnlyModelViewSet
 from apps.exam import models
 from apps.exam.api.serializers import answer
 
+from apps.api.schema import TaggedAutoSchema
+
 
 class UserAnswerViewSet(ReadOnlyModelViewSet):
+    schema = TaggedAutoSchema(tags=["Exam Answer"])
     serializer_class = answer.UserAnswer
     queryset = models.UserAnswer.objects.all()
     permission_classes = [IsAuthenticated]

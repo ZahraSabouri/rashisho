@@ -37,7 +37,7 @@ class ResumePermission(BasePermission):
                 if community == obj.user.community:
                     return True
             if ProjectAllocation.objects.filter(user=request.user).exists():
-                if obj and request.user.project.project == obj.user.project.project:
+                if obj and request.user.project.project == obj.user.user.project.project:
                     return True
 
         return request.user.has_role([Roles.user]) is not None
@@ -82,7 +82,14 @@ class ResumeFinishedPermission(BasePermission):
 
 class IsAdminOrReadOnlyPermission(BasePermission):
     def has_permission(self, request, view) -> bool:
-        if view.action in ["create", "update", "partial_update", "destroy", "project_allocate_excel"]:
+
+        action = getattr(view, "action", None)
+        if action is None:
+            if request.method in SAFE_METHODS:
+                return True
+            return request.user.has_role([Roles.sys_god])
+
+        if action in ["create", "update", "partial_update", "destroy", "project_allocate_excel"]:
             return request.user.has_role([Roles.sys_god])
 
         return True

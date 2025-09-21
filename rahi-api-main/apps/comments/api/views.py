@@ -26,12 +26,12 @@ from apps.comments.api.serializers import (
     CommentExportSerializer
 )
 
+from apps.api.schema import TaggedAutoSchema
+from apps.manager.permissions import IsSuperUser
+
 
 class CommentViewSet(ModelViewSet):
-    """
-    ViewSet for managing comments with full CRUD support.
-    Supports filtering by content type, status, user, and parent comment.
-    """
+    schema = TaggedAutoSchema(tags=["Comments"])
     serializer_class = CommentSerializer
     permission_classes = [IsAuthenticated]
     # pagination_class = StandardResultsSetPagination
@@ -94,7 +94,8 @@ class CommentViewSet(ModelViewSet):
 
     def perform_create(self, serializer):
         """Create comment with proper user assignment"""
-        serializer.save(user=self.request.user)
+        # serializer.save(user=self.request.user)
+        serializer.save() 
 
     def update(self, request, *args, **kwargs):
         """Only allow content updates by owner or admin"""
@@ -111,23 +112,6 @@ class CommentViewSet(ModelViewSet):
                 raise PermissionDenied("زمان ویرایش نظر گذشته است")
         
         return super().update(request, *args, **kwargs)
-
-    def destroy(self, request, *args, **kwargs):
-        """Only admins can delete comments"""
-        if not (hasattr(request.user, 'role') and request.user.role == 0):
-            raise PermissionDenied("شما مجاز به حذف نظرات نیستید")
-        
-        comment = self.get_object()
-        
-        # Log the deletion
-        CommentModerationLog.objects.create(
-            comment=comment,
-            moderator=request.user,
-            action='DELETED',
-            reason=request.data.get('reason', '')
-        )
-        
-        return super().destroy(request, *args, **kwargs)
 
     @action(detail=True, methods=['post'])
     def react(self, request, pk=None):
@@ -188,38 +172,35 @@ class CommentViewSet(ModelViewSet):
                 status=status.HTTP_404_NOT_FOUND
             )
 
-    @action(detail=True, methods=['post'], permission_classes=[IsSysgod])
+    @action(detail=True, methods=['post'], permission_classes=[IsSuperUser])
     def approve(self, request, pk=None):
-        """Approve comment (admin only)"""
         comment = self.get_object()
+        old_status = comment.status
         reason = request.data.get('reason', '')
-        
+
         if comment.status == 'APPROVED':
             return Response(
                 {'error': 'این نظر قبلاً تایید شده است'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
+
         comment.approve(request.user)
-        
-        # Log the action
+
         CommentModerationLog.objects.create(
             comment=comment,
             moderator=request.user,
             action='APPROVED',
-            reason=reason
+            reason=reason,
+            previous_status=old_status,
+            new_status=comment.status,
         )
-        
-        serializer = self.get_serializer(comment)
-        return Response({
-            'message': 'نظر تایید شد',
-            'comment': serializer.data
-        }, status=status.HTTP_200_OK)
 
-    @action(detail=True, methods=['post'], permission_classes=[IsSysgod])
+        return Response({'detail': 'نظر تایید شد.'}, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsSuperUser])
     def reject(self, request, pk=None):
-        """Reject comment (admin only)"""
         comment = self.get_object()
+        old_status = comment.status
         reason = request.data.get('reason', '')
         
         if comment.status == 'REJECTED':
@@ -235,7 +216,9 @@ class CommentViewSet(ModelViewSet):
             comment=comment,
             moderator=request.user,
             action='REJECTED',
-            reason=reason
+            reason=reason,
+            previous_status=old_status,
+            new_status=comment.status,
         )
         
         serializer = self.get_serializer(comment)
@@ -243,50 +226,61 @@ class CommentViewSet(ModelViewSet):
             'message': 'نظر رد شد',
             'comment': serializer.data
         }, status=status.HTTP_200_OK)
+    
+    def destroy(self, request, *args, **kwargs):
+        """Only admins can delete comments  always log"""
+        if not (hasattr(request.user, "role") and request.user.role == 0):
+            raise PermissionDenied("شما مجاز به حذف نظرات نیستید")
+        comment = self.get_object()
+        CommentModerationLog.objects.create(
+            comment=comment,
+            moderator=request.user,
+            action="DELETED",
+            reason=request.data.get("reason", ""),
+            previous_status=comment.status,
+            new_status=comment.status,
+        )
+        return super().destroy(request, *args, **kwargs)
 
-    @action(detail=False, methods=['post'], permission_classes=[IsSysgod])
+    @action(detail=False, methods=['post'], permission_classes=[IsSuperUser])
     def bulk_action(self, request):
-        """Bulk approve, reject, or delete comments (admin only)"""
-        serializer = BulkCommentActionSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        
-        comment_ids = serializer.validated_data['comment_ids']
-        action_type = serializer.validated_data['action']
-        reason = serializer.validated_data.get('reason', '')
-        
-        comments = Comment.objects.filter(id__in=comment_ids)
-        
+        ser = BulkCommentActionSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        action_type = ser.validated_data['action']          # 'approve' | 'reject' | 'delete'
+        reason = ser.validated_data.get('reason', '')
+        ids = ser.validated_data['comment_ids']
+
+        comments = Comment.objects.filter(id__in=ids)
         with transaction.atomic():
-            success_count = 0
-            
-            for comment in comments:
-                if action_type == 'approve' and comment.status != 'APPROVED':
-                    comment.approve(request.user)
-                    success_count += 1
-                elif action_type == 'reject' and comment.status != 'REJECTED':
-                    comment.reject(request.user)
-                    success_count += 1
-                elif action_type == 'delete':
-                    success_count += 1
-                    
-                # Log the action
+            for c in comments.select_for_update():
+                old = c.status
+                if action_type == 'approve':
+                    c.approve(request.user)
+                    new = c.status
+                    log_action = 'APPROVED'
+                elif action_type == 'reject':
+                    c.reject(request.user, reason=reason)
+                    new = c.status
+                    log_action = 'REJECTED'
+                else:  # delete
+                    new = old
+                    log_action = 'DELETED'
+
                 CommentModerationLog.objects.create(
-                    comment=comment,
+                    comment=c,
                     moderator=request.user,
-                    action=action_type.upper(),
-                    reason=reason
+                    action=log_action,
+                    reason=reason,
+                    previous_status=old,
+                    new_status=new,
                 )
-            
-            # Delete comments if needed (after logging)
+
             if action_type == 'delete':
                 comments.delete()
-        
-        return Response({
-            'message': f'{success_count} نظر با موفقیت {action_type} شدند',
-            'processed_count': success_count
-        }, status=status.HTTP_200_OK)
 
-    @action(detail=False, methods=['get'], permission_classes=[IsSysgod])
+        return Response({'detail': 'عملیات با موفقیت انجام شد.'})
+
+    @action(detail=False, methods=['get'], permission_classes=[IsSuperUser])
     def export(self, request):
         """Export comments to CSV (admin only)"""
         # Get filters from request
@@ -333,7 +327,7 @@ class CommentViewSet(ModelViewSet):
                 comment_data['user_username'] or '',
                 comment_data['content_type_name'] or '',
                 comment_data['object_id'],
-                comment_data['parent_content'][:50] if comment_data['parent_content'] else '',
+                (comment_data.get('parent_content') or '')[:50],
                 comment_data['likes_count'],
                 comment_data['dislikes_count'],
                 comment_data['replies_count'],
@@ -388,11 +382,9 @@ class CommentModerationViewSet(
     mixins.RetrieveModelMixin,
     GenericViewSet
 ):
-    """
-    ViewSet for viewing comment moderation logs (admin only).
-    """
+    schema = TaggedAutoSchema(tags=["Comments"])
     serializer_class = CommentModerationSerializer
-    permission_classes = [IsSysgod]
+    permission_classes = [IsSuperUser]
     queryset = CommentModerationLog.objects.select_related(
         'comment', 'comment__user', 'moderator'
     ).order_by('-created_at')

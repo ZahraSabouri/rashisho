@@ -15,14 +15,13 @@ from apps.project.api.serializers import project_status as status_serializers
 from apps.api.permissions import IsAdminOrReadOnlyPermission
 from apps.api.pagination import Pagination
 
+from apps.api.schema import TaggedAutoSchema
+
 logger = logging.getLogger(__name__)
 
 
 class ProjectStatusViewSet(ReadOnlyModelViewSet):
-    """
-    ViewSet for project status information.
-    Provides read-only access to project activation status.
-    """
+    schema = TaggedAutoSchema(tags=["Project Status"])
     serializer_class = status_serializers.ProjectStatusSerializer
     queryset = models.Project.objects.all()
     permission_classes = [IsAuthenticated]
@@ -71,10 +70,7 @@ class ProjectStatusViewSet(ReadOnlyModelViewSet):
 
 
 class ProjectActivationView(APIView):
-    """
-    View for project activation/deactivation operations.
-    Admin-only endpoint for managing project status.
-    """
+    schema = TaggedAutoSchema(tags=["Project Status"])
     permission_classes = [IsAdminOrReadOnlyPermission]
     serializer_class = status_serializers.ProjectActivationSerializer
 
@@ -108,20 +104,39 @@ class ProjectActivationView(APIView):
 
 
 class SingleProjectStatusView(APIView):
-    """
-    View for single project status management.
-    Allows activation/deactivation of individual projects.
-    """
+    schema = TaggedAutoSchema(tags=["Project Status"])
     permission_classes = [IsAdminOrReadOnlyPermission]
 
+    def post(self, request, project_id):
+        project = get_object_or_404(models.Project, id=project_id)
+        is_active = bool(request.data.get("is_active"))
+        reason = (request.data.get("reason") or "").strip()
+        admin_message = request.data.get("admin_message")
+
+        if is_active:
+            project.activate()
+        else:
+            project.deactivate()
+            project.deactivation_reason = reason[:200]
+
+        if admin_message is not None:
+            project.admin_message = admin_message
+
+        project.save(update_fields=["is_active", "deactivation_reason", "admin_message"])
+
+        cache.delete("project_status_stats")
+        ser = status_serializers.ProjectStatusDetailSerializer(project)
+        return Response(
+            {"message": ("فعال‌سازی" if is_active else "غیرفعال‌سازی") + " پروژه انجام شد", "project": ser.data},
+            status=status.HTTP_200_OK,
+        )
+    
     def get(self, request, project_id, *args, **kwargs):
-        """Get single project status"""
         project = get_object_or_404(models.Project, id=project_id)
         serializer = status_serializers.ProjectStatusDetailSerializer(project)
         return Response(serializer.data)
 
     def patch(self, request, project_id, *args, **kwargs):
-        """Toggle single project activation status"""
         project = get_object_or_404(models.Project, id=project_id)
         new_status = not project.is_active
         reason = request.data.get('reason', '')

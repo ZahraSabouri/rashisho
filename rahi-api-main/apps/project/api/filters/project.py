@@ -1,3 +1,4 @@
+import uuid
 from django.db.models import Q
 from django_filters.rest_framework import FilterSet, filters
 
@@ -28,23 +29,23 @@ class ProjectFilterSet(FilterSet):
         return final_qs
 
     def filter_tags(self, queryset, name, values):
-        """Filter by tags - supports comma-separated tag IDs or names"""
         values_list = [v.strip() for v in values.split(",") if v.strip()]
         if not values_list:
             return queryset
-        
+
         final_qs = Project.objects.none()
         for value in values_list:
             try:
-                # Try to filter by ID first (if it's a number)
-                if value.isdigit():
-                    final_qs |= queryset.filter(tags__id=value)
-                else:
-                    # Filter by tag name (case-insensitive)
+                # Try UUID first
+                try:
+                    uuid.UUID(value)
+                    final_qs |= queryset.filter(tags__id=value)  # UUID path
+                except ValueError:
+                    # Fallback: name icontains
                     final_qs |= queryset.filter(tags__name__icontains=value)
             except Exception:
                 continue
-        
+
         return final_qs.distinct()
 
     def filter_search(self, queryset, name, value):

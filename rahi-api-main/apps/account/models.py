@@ -4,6 +4,8 @@ from django.db import models
 from django_resized import ResizedImageField
 from rest_framework.exceptions import ValidationError
 
+from django.conf import settings
+
 from apps.account.managers import BaseUserManager
 from apps.common.models import BaseModel
 from apps.settings.models import City
@@ -36,6 +38,25 @@ def personal_video_file_type(value):
         raise ValidationError("نوع فایل غیرمجاز است.")
 
 
+class PeerFeedback(BaseModel):
+    to_user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+                                 related_name="received_feedbacks", verbose_name="کاربر مقصد")
+    author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                related_name="given_feedbacks", verbose_name="نویسنده نظر")
+    text = models.TextField("متن نظر", max_length=1000)
+    phase = models.CharField("مرحله/بخش", max_length=64, blank=True)  # optional (e.g., team stage)
+    is_public = models.BooleanField("قابل نمایش", default=True)
+
+    class Meta(BaseModel.Meta):
+        verbose_name = "نظر همتیمی (آیینه‌شو)"
+        verbose_name_plural = "نظرات همتیمی (آیینه‌شو)"
+        ordering = ("-created_at",)
+
+    def __str__(self) -> str:
+        return f"Mirror → {self.to_user} by {self.author or '—'}"
+
+
+
 class User(BaseModel, AbstractUser, PermissionsMixin):
     GENDER = [("FE", "زن"), ("MA", "مرد")]
     MILITARY_STATUS = [("EE", "معافیت تحصیلی"), ("PE", "معافیت دائم"), ("FS", "پایان خدمت"), ("IN", "مشمول")]
@@ -63,7 +84,20 @@ class User(BaseModel, AbstractUser, PermissionsMixin):
         related_name="users",
         verbose_name="انجمن",
     )
-    telegram_address = models.CharField(max_length=100, null=True, blank=True, verbose_name="آدرس تلگرام")
+    email = models.EmailField(
+        verbose_name="ایمیل", 
+        unique=True, 
+        null=True, 
+        blank=True,
+        help_text="ایمیل برای راه ارتباطی و دریافت اطلاعیه‌های مهم"
+    )
+    telegram_address = models.CharField(
+        max_length=100, 
+        verbose_name="آدرس تلگرام", 
+        null=True, 
+        blank=True,
+        help_text="منسوخ شده - از ایمیل استفاده کنید" 
+    )
 
     objects = BaseUserManager()
 
@@ -75,11 +109,7 @@ class User(BaseModel, AbstractUser, PermissionsMixin):
 
     @property
     def full_name(self):
-        return f"{self.user_info.get("first_name")} {self.user_info.get("last_name")}"
-
-    @property
-    def is_admin(self):
-        return self.is_superuser and self.is_staff
+        return f'{self.user_info.get("first_name")} {self.user_info.get("last_name")}'
 
     @property
     def user_id(self):
@@ -153,3 +183,25 @@ class Connection(BaseModel):
 
     def __str__(self):
         return f"{self.from_user} → {self.to_user} ({self.status})"
+
+
+class DirectMessage(BaseModel):
+    sender = models.ForeignKey(
+        settings.AUTH_USER_MODEL, related_name="sent_messages", on_delete=models.CASCADE
+    )
+    receiver = models.ForeignKey(
+        settings.AUTH_USER_MODEL, related_name="received_messages", on_delete=models.CASCADE
+    )
+    body = models.TextField()
+    is_read = models.BooleanField(default=False)
+
+    class Meta(BaseModel.Meta):
+        verbose_name = "پیام مستقیم"
+        verbose_name_plural = "پیام‌های مستقیم"
+        indexes = [
+            models.Index(fields=["receiver", "is_read"]),
+            models.Index(fields=["sender", "receiver", "created_at"]),
+        ]
+
+    def __str__(self):
+        return f"{self.sender_id} -> {self.receiver_id}: {self.body[:30]}"

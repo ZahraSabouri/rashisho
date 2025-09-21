@@ -5,14 +5,19 @@ from apps.common.models import BaseModel
 
 class Province(models.Model):
     title = models.CharField(max_length=30, verbose_name="عنوان")
-
-    def __str__(self):
-        return self.title
+    phone_code = models.CharField(
+        max_length=3,
+        default="21",
+        verbose_name="کد تلفن استان",
+        help_text="کد تلفن استان برای تولید کد تیم"
+    )
 
     class Meta:
         verbose_name = "استان"
         verbose_name_plural = "استان ها"
 
+    def __str__(self):
+        return f"{self.title} ({self.phone_code})"
 
 class City(models.Model):
     title = models.CharField(max_length=50, verbose_name="عنوان")

@@ -16,7 +16,8 @@ from apps.project.api.serializers.tag import ProjectTagSerializer
 from apps.resume.models import Resume
 from apps.settings.api.serializers.study_field import StudyFieldSerializer
 from apps.project.models import Project
-from apps.project.services import can_select_projects, can_show_attractiveness, count_project_attractiveness, is_selection_phase_active
+from apps.project.services import can_select_projects, can_show_attractiveness, compute_project_relatability, \
+    count_project_attractiveness, is_selection_phase_active
 
 
 class ScenarioSerializer(serializers.ModelSerializer):
@@ -105,15 +106,11 @@ class ProjectDerivativesSerializer(serializers.ModelSerializer):
 
 
 class ProjectSerializer(serializers.ModelSerializer):
-    """
-    Main project serializer with comment integration.
-    Includes comment counts, latest comments, and statistics.
-    """
     project_scenario = ScenarioSerializer(many=True, read_only=True)
     project_task = TaskSerializer(many=True, read_only=True)
     study_fields = StudyFieldSerializer(many=True, read_only=True)
     study_field_ids = serializers.ListField(
-            child=serializers.IntegerField(), write_only=True, required=False, allow_empty=True)
+        child=serializers.IntegerField(), write_only=True, required=False, allow_empty=True)
     tags = ProjectTagSerializer(many=True, read_only=True)
     tag_ids = serializers.ListField(
         child=serializers.UUIDField(),
@@ -136,15 +133,23 @@ class ProjectSerializer(serializers.ModelSerializer):
     phase_display = serializers.CharField(read_only=True)
     can_be_selected = serializers.BooleanField(read_only=True)
     show_attractiveness = serializers.BooleanField(read_only=True)
-    
+
     attractiveness = serializers.SerializerMethodField()
+    relatability = serializers.SerializerMethodField()
+    group_ids = serializers.PrimaryKeyRelatedField(
+        many=True,
+        queryset=models.Group.objects.all(),
+        source='groups',
+        required=False,
+        help_text="فهرست IDهای گروه‌هایی که می‌خواهید به پروژه اضافه کنید. خالی یعنی همه گروه‌ها."
+    )
 
     class Meta:
         model = models.Project
         exclude = ["deleted", "deleted_at"]
         read_only_fields = ['code', 'status_display', 'can_be_selected',
-                            'comments_count', 'has_comments', 
-                            'current_phase', 'phase_display', 'show_attractiveness']
+                            'comments_count', 'has_comments',
+                            'current_phase', 'phase_display', 'show_attractiveness', 'relatability']
 
     def _extract_study_field_ids(self, validated_data):
         ctx_ids = self.context.get("study_fields_ids", None)
@@ -154,13 +159,16 @@ class ProjectSerializer(serializers.ModelSerializer):
 
     @extend_schema_field(OpenApiTypes.INT)
     def get_attractiveness(self, obj):
-        """
-        Show attractiveness count based on project's current phase.
-        Only visible during SELECTION_ACTIVE and SELECTION_FINISHED phases.
-        """
         if can_show_attractiveness(obj):
             return count_project_attractiveness(obj.id)
         return None
+
+    def get_relatability(self, obj):
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        if not user or not getattr(user, "is_authenticated", False):
+            return {"score": 0, "matched_by": "none"}
+        return compute_project_relatability(obj, user)
 
     def create(self, validated_data):
         tag_ids = validated_data.pop("tag_ids", [])
@@ -198,7 +206,7 @@ class ProjectSerializer(serializers.ModelSerializer):
             instance.tags.set(tag_ids)
 
         return instance
-    
+
     def to_representation(self, instance):
         rep = super().to_representation(instance)
         rep["image"] = instance.image.url if instance.image else None
@@ -210,7 +218,6 @@ class ProjectSerializer(serializers.ModelSerializer):
         return rep
 
     def get_latest_comments(self, obj):
-        """دریافت آخرین نظرات برای نمایش در لیست پروژه‌ها"""
         try:
             from apps.comments.utils import format_comment_for_display
             comments = obj.get_latest_comments(limit=3)
@@ -222,7 +229,6 @@ class ProjectSerializer(serializers.ModelSerializer):
             return []
 
     def get_comment_stats(self, obj):
-        """دریافت آمار کلی نظرات"""
         try:
             return obj.get_comment_statistics()
         except Exception:
@@ -230,11 +236,6 @@ class ProjectSerializer(serializers.ModelSerializer):
 
 
 class ProjectDetailSerializer(ProjectSerializer):
-    """
-    Detailed project serializer with additional comment data for project detail pages.
-    Includes recent comments and top-rated comments.
-    """
-
     recent_comments = serializers.SerializerMethodField()
     top_comments = serializers.SerializerMethodField()
 
@@ -358,22 +359,22 @@ class ProjectPrioritySerializer(serializers.ModelSerializer):
         instance = super().create(validated_data)
         self._sync_project_selections(instance)
         return instance
-    
+
     def update(self, instance, validated_data):
         instance = super().update(instance, validated_data)
         self._sync_project_selections(instance)
         return instance
-    
+
     def _sync_project_selections(self, instance):
         """
         Sync JSONB priority data to ProjectSelection table.
         This allows fast counting while maintaining backward compatibility.
         """
         from apps.project.models import ProjectSelection
-        
+
         # Delete old selections for this user
         ProjectSelection.objects.filter(user=instance.user).delete()
-        
+
         # Create new selections based on current priority JSONB
         for priority_str, project_id in instance.priority.items():
             if project_id:  # Skip null/empty values
@@ -402,7 +403,7 @@ class ProjectPrioritySerializer(serializers.ModelSerializer):
             "resume": user.resume.id if Resume.objects.filter(user=user).exists() else None,
         }
         return result
-           
+
     def validate_priority(self, value):
         """Enhanced validation that checks if projects can be selected"""
         # Existing validation logic...
@@ -434,7 +435,7 @@ class ProjectPrioritySerializer(serializers.ModelSerializer):
                 raise ValidationError("فرمت دیکشنری ارسالی صحیح نمی باشد!")
 
         return value
-    
+
 
 class ProjectAllocationSerializer(serializers.ModelSerializer):
     class Meta:

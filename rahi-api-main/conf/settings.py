@@ -43,6 +43,7 @@ INSTALLED_APPS = [
 ]
 
 LOCAL_APPS = [
+    "apps.api",  
     "apps.account",
     "apps.resume",
     "apps.settings",
@@ -51,8 +52,8 @@ LOCAL_APPS = [
     "apps.project",
     "apps.community",
     "apps.comments",
-    "apps.access",
-
+    "apps.blog",
+    "apps.manager"
 ]
 
 EXTERNAL_APPS = [
@@ -64,7 +65,6 @@ EXTERNAL_APPS = [
 ]
 
 INSTALLED_APPS += LOCAL_APPS + EXTERNAL_APPS
-
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -203,5 +203,20 @@ COMMENTS_SETTINGS = {
     'ENABLE_EMAIL_NOTIFICATIONS': False,  # Future feature
     'MAX_REPLY_DEPTH': 1,  # Only one level of replies
     'PROFANITY_FILTER_ENABLED': False,  # Future feature
-    }
+}
 
+EMAIL_SETTINGS = """
+# Email Configuration for راه ارتباطی notifications
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+
+# Production SMTP settings (update with your provider)
+EMAIL_HOST = 'smtp.gmail.com'  # or your SMTP provider
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = 'your-email@gmail.com'
+EMAIL_HOST_PASSWORD = 'your-app-password'
+DEFAULT_FROM_EMAIL = 'راهی‌شو <noreply@rahisho.com>'
+
+# For development, you can use console backend
+# EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+"""

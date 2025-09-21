@@ -9,8 +9,10 @@ from apps.public.api.serializers.ticket import CommentSerializer, DepartmentSeri
 from apps.public.models import Comment, Department, Ticket
 from apps.utils.utility import paginated_response
 
+from apps.api.schema import TaggedAutoSchema
 
 class CommentViewSet(mixins.CreateModelMixin, mixins.RetrieveModelMixin, mixins.ListModelMixin, GenericViewSet):
+    schema = TaggedAutoSchema(tags=["Ticket"])
     serializer_class = CommentSerializer
     permission_classes = [IsSysgod | IsUser]
     filterset_fields = ["ticket", "ticket__status", "user_id"]
@@ -83,6 +85,7 @@ class CommentViewSet(mixins.CreateModelMixin, mixins.RetrieveModelMixin, mixins.
 
 
 class DepartmentViewSet(ModelViewSet):
+    schema = TaggedAutoSchema(tags=["Ticket"])
     permission_classes = [IsAdminOrReadOnlyPermission]
     serializer_class = DepartmentSerializer
     queryset = Department.objects.all()

@@ -5,8 +5,11 @@ from apps.api.permissions import IsSysgod
 from apps.public.api.serializers import contact_us
 from apps.public.models import ContactUs
 
+from apps.api.schema import TaggedAutoSchema
+
 
 class ContactUsViewSet(ModelViewSet):
+    schema = TaggedAutoSchema(tags=["Contact Us"])
     serializer_class = contact_us.ContactUsSerializer
     queryset = ContactUs.objects.all()
     permission_classes = [IsSysgod]

@@ -14,8 +14,11 @@ from apps.exam import models
 from apps.exam.api.serializers import belbin as serializers
 from apps.exam.services import check_user_next_question
 
+from apps.api.schema import TaggedAutoSchema
+
 
 class BelbinQuestionVS(ModelViewSet):
+    schema = TaggedAutoSchema(tags=["Exam Belbin"])
     serializer_class = serializers.BelbinQuestionSerializer
     queryset = models.BelbinQuestion.objects.all().prefetch_related("belbin_answer_question").order_by("number")
     permission_classes = [ResumeFinishedPermission]
@@ -34,6 +37,7 @@ class BelbinQuestionVS(ModelViewSet):
 
 
 class BelbinMultiCreate(CreateModelMixin, GenericViewSet):
+    schema = TaggedAutoSchema(tags=["Exam Belbin"])
     serializer_class = serializers.BelbinMultiCreateSerializer
     queryset = models.BelbinQuestion.objects.all()
     permission_classes = [IsSysgod]
@@ -48,6 +52,7 @@ class BelbinMultiCreate(CreateModelMixin, GenericViewSet):
 
 
 class BelbinUserAnswer(GenericViewSet, CreateModelMixin, ListModelMixin):
+    schema = TaggedAutoSchema(tags=["Exam Belbin"])
     serializer_class = serializers.BelbinMultipleUserSerializer
     permission_classes = [ResumeFinishedPermission]
 
@@ -66,6 +71,7 @@ class BelbinUserAnswer(GenericViewSet, CreateModelMixin, ListModelMixin):
 
 
 class BelbinFinishedUsersCount(APIView):
+    schema = TaggedAutoSchema(tags=["Exam Belbin"])
     permission_classes = [IsSysgod | IsUser]
 
     def get(self, request):
@@ -92,6 +98,7 @@ class BelbinFinishedUsersCount(APIView):
 
 
 class RemoveUserExamAnswer(APIView):
+    schema = TaggedAutoSchema(tags=["Exam Belbin"])
     permission_classes = [IsUser | IsSysgod]
 
     def get(self, request, *args, **kwargs):

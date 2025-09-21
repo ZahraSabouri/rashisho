@@ -4,8 +4,10 @@ from apps.api.permissions import IsAdminOrReadOnlyPermission
 from apps.public.api.serializers import common_questions
 from apps.public.models import CommonQuestions
 
+from apps.api.schema import TaggedAutoSchema
 
 class CommonQuestionsViewSet(ModelViewSet):
+    schema = TaggedAutoSchema(tags=["Common Questions"])
     serializer_class = common_questions.CommonQuestionsSerializer
     queryset = CommonQuestions.objects.all()
     permission_classes = [IsAdminOrReadOnlyPermission]

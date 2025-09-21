@@ -7,22 +7,19 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny
 from django_filters.rest_framework import DjangoFilterBackend
+from slugify import slugify
 
 from apps.project import models
 from apps.project.api.serializers import tag as tag_serializers
 from apps.api.permissions import IsAdminOrReadOnlyPermission
-# FIXED: Use the correct pagination class from your project
 from apps.api.pagination import Pagination
 
+from apps.api.schema import TaggedAutoSchema
 
 class TagViewSet(ModelViewSet):
-    """
-    ViewSet for Tag CRUD operations.
-    - Admins can create, update, delete tags
-    - Everyone can read tags
-    - Supports search and filtering
-    """
+    schema = TaggedAutoSchema(tags=["Project Tags"])
     
     queryset = models.Tag.objects.all().order_by('name')
     permission_classes = [IsAdminOrReadOnlyPermission]
@@ -31,9 +28,9 @@ class TagViewSet(ModelViewSet):
     search_fields = ['name', 'description']
     ordering_fields = ['name', 'created_at']
     ordering = ['name']
+    filterset_fields = ["category", "category_ref"]
     
     def get_serializer_class(self):
-        """Return appropriate serializer based on action"""
         if self.action == 'create':
             return tag_serializers.TagCreateSerializer
         elif self.action == 'analytics':
@@ -58,12 +55,10 @@ class TagViewSet(ModelViewSet):
         return queryset
     
     def create(self, request, *args, **kwargs):
-        """Create a new tag with success message"""
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         tag = serializer.save()
         
-        # Clear popular tags cache
         cache.delete('popular_tags')
         
         return Response({
@@ -155,13 +150,47 @@ class TagViewSet(ModelViewSet):
         serializer = self.get_serializer(unused_tags, many=True)
         return Response(serializer.data)
 
+    @action(detail=True, methods=["patch"], url_path="set-category")
+    def set_category(self, request, pk=None):
+        tag = self.get_object()
+        cat_id = request.data.get("category_id")
+        raw = (request.data.get("category") or "").strip()
+        max_len = models.Tag._meta.get_field("category").max_length
+        if len(category.code or "") > max_len:
+            return Response(
+                {"error": f"Category code too long for Tag.category({max_len})"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if not cat_id and not raw:
+            return Response({"error": "category_id or category is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        if cat_id:
+            category = models.TagCategory.objects.get(id=cat_id)
+        else:
+            category = (models.TagCategory.objects.filter(code__iexact=raw).first()
+                        or models.TagCategory.objects.filter(title__iexact=raw).first())
+            if not category:
+                category = models.TagCategory.objects.create(code=slugify(raw), title=raw)
+
+        tag.category_ref = category
+        tag.category = category.code  # keep legacy field in sync
+        tag.save(update_fields=["category_ref", "category"])
+
+        cache.delete("popular_tags")
+        return Response({"message": "category updated", "tag": tag_serializers.TagSerializer(tag).data},
+                        status=status.HTTP_200_OK)
+
+
+class TagCategoryViewSet(ModelViewSet):
+    schema = TaggedAutoSchema(tags=["Project Tags"])
+    queryset = models.TagCategory.objects.all().order_by("title")
+    serializer_class = tag_serializers.TagCategorySerializer
+    permission_classes = [IsAdminOrReadOnlyPermission]
+
 
 class ProjectTagManagementView(APIView):
-    """
-    API for managing tags on projects.
-    - GET: retrieve project tags
-    - POST: add/update project tags (admin only)
-    """
+    schema = TaggedAutoSchema(tags=["Project Tags"])
     
     def get_permissions(self):
         """Read operations are public, write operations need admin permission"""
@@ -238,15 +267,12 @@ class ProjectTagManagementView(APIView):
 
 
 class RelatedProjectsView(APIView):
-    """
-    API for getting related projects based on shared tags.
-    Uses caching for better performance.
-    """
+    schema = TaggedAutoSchema(tags=["Project Tags"])
     
-    permission_classes = [IsAuthenticated]
+    # permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
     
     def get(self, request, project_id):
-        """Get related projects based on shared tags"""
         try:
             project = models.Project.objects.get(id=project_id, visible=True)
         except models.Project.DoesNotExist:
