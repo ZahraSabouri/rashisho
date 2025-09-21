@@ -310,5 +310,26 @@ urlpatterns = [
                 UnstableTeamExportImportView.as_view({"post": "auto_complete_unstable_teams"}),
                 name="auto-complete-unstable-teams"),
 
+        path(
+                'team-request/users-status/', 
+                TeamRequestViewSet.as_view({'get': 'users_status'}), 
+                name='team-request-users-status'
+        ),
+        path(
+                'team-request/send-invitation/', 
+                TeamInvitationViewSet.as_view({'post': 'invite_user_to_team'}), 
+                name='team-request-send-invitation'
+        ),
+        path(
+                'team-request/respond-invitation/', 
+                TeamInvitationViewSet.as_view({'post': 'respond_to_invitation'}), 
+                name='team-request-respond-invitation'
+        ),
+        path(
+                'team-request/propose-team/', 
+                TeamInvitationViewSet.as_view({'post': 'propose_team_formation'}), 
+                name='team-request-propose-team'
+        ),
+
         ])),
     ]

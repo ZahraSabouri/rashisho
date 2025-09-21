@@ -52,7 +52,10 @@ class AnnouncementViewSet(viewsets.ModelViewSet):
         ids = request.query_params.getlist("creator_ids") or request.query_params.getlist("creators")
         if len(ids) == 1 and "," in ids[0]:
             ids = [x.strip() for x in ids[0].split(",") if x.strip()]
-        qs = self.get_queryset().filter(created_by_id__in=ids) if ids else self.get_queryset()
+
+        base_qs = self.get_queryset().filter(created_by__isnull=False)  # exclude null creators
+        qs = base_qs.filter(created_by_id__in=ids) if ids else base_qs
+
         page = self.paginate_queryset(qs)
         ser = self.get_serializer(page or qs, many=True)
         return self.get_paginated_response(ser.data) if page is not None else Response(ser.data, status=200)
@@ -159,13 +162,11 @@ class AnnouncementViewSet(viewsets.ModelViewSet):
     )
     @action(methods=["get"], detail=False, url_path="admin/all", permission_classes=[permissions.IsAdminUser])
     def admin_all(self, request):
-        """Admin: Get all announcements with targeting details"""
         user_id = request.query_params.get('user_id')
 
         queryset = self.get_queryset().prefetch_related('target_users').order_by('-created_at')
 
         if user_id:
-            # Filter to announcements that target this specific user (or all users)
             queryset = queryset.filter(Q(target_users__id=user_id) | Q(target_users__isnull=True))
 
         # Apply pagination
@@ -265,7 +266,8 @@ class NotificationViewSet(viewsets.ModelViewSet):
         ids = request.query_params.getlist("creator_ids") or request.query_params.getlist("creators")
         if len(ids) == 1 and "," in ids[0]:
             ids = [x.strip() for x in ids[0].split(",") if x.strip()]
-        qs = UserNotification.objects.all().order_by("-created_at")
+
+        qs = UserNotification.objects.filter(created_by__isnull=False).order_by("-created_at")  # exclude null creators
         if ids:
             qs = qs.filter(created_by_id__in=ids)
 

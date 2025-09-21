@@ -7,11 +7,12 @@ from drf_spectacular.utils import extend_schema, OpenApiResponse, OpenApiParamet
 from django.db import models
 
 from apps.api.schema import TaggedAutoSchema
+from apps.api.pagination import Pagination
 
 from apps.account.models import DirectMessage
 from apps.account.api.serializers.messages import (
     SendMessageInSer, DirectMessageOutSer, ChatThreadOutSer,
-    ChatListItemSer
+    ChatListItemSer, ConversationMessageSer, ConversationMessageMiniSer
 )
 
 User = get_user_model()
@@ -46,7 +47,8 @@ class ConversationListAV(APIView):
         tags=["User DM"],
         parameters=[
             OpenApiParameter("peer", str, OpenApiParameter.QUERY, required=True, description="UUID کاربر مقابل"),
-            OpenApiParameter("limit", int, OpenApiParameter.QUERY, required=False, description="پیش‌فرض 50"),
+            OpenApiParameter("page", int, OpenApiParameter.QUERY, required=False, description="Page number (1-based)"),
+            OpenApiParameter("page_size", int, OpenApiParameter.QUERY, required=False, description="Items per page"),
         ],
         responses={200: DirectMessageOutSer(many=True)},
     )
@@ -55,11 +57,14 @@ class ConversationListAV(APIView):
         peer = request.query_params.get("peer")
         if not peer:
             return Response({"detail": "پارامتر peer الزامی است."}, status=400)
-        limit = int(request.query_params.get("limit") or 50)
         qs = (DirectMessage.objects
               .filter(Q(sender=request.user, receiver_id=peer) | Q(sender_id=peer, receiver=request.user))
-              .order_by("-created_at")[:limit])
-        return Response(DirectMessageOutSer(qs, many=True).data)
+              .order_by("-created_at"))
+
+        paginator = Pagination()
+        page = paginator.paginate_queryset(qs, request, view=self)
+        data = DirectMessageOutSer(page, many=True).data
+        return paginator.get_paginated_response(data)
 
 
 class MarkReadAV(APIView):
@@ -204,10 +209,9 @@ class ChatsAV(APIView):
     @extend_schema(
         tags=["User DM"],
         parameters=[
-            OpenApiParameter("limit", int, OpenApiParameter.QUERY, required=False,
-                             description="Max conversations to return (default 50, max 200)"),
-            OpenApiParameter("order", str, OpenApiParameter.QUERY, required=False,
-                             description="Message order inside each conversation: desc|asc (default desc)"),
+            OpenApiParameter("page", int, OpenApiParameter.QUERY, required=False, description="Page number (1-based)"),
+            OpenApiParameter("page_size", int, OpenApiParameter.QUERY, required=False, description="Conversations per page"),
+            OpenApiParameter("order", str, OpenApiParameter.QUERY, required=False, description="desc|asc (default desc)"),
         ],
         responses={200: ChatListItemSer(many=True)},
         # summary="List DM chats (one row per conversation; only the last message with each peer).",
@@ -216,82 +220,208 @@ class ChatsAV(APIView):
     def get(self, request):
         me = request.user
 
-        # Limit handling (keep fast & predictable)
-        try:
-            limit = int(request.query_params.get("limit") or 50)
-        except ValueError:
-            limit = 50
-        limit = max(1, min(limit, 200))
-
-        # Compute unread counts per peer for 'me' (receiver=me, unread only)
-        unread_rows = (
-            DirectMessage.objects
-            .filter(receiver=me, is_read=False)
-            .values("sender_id")
-            .annotate(c=Count("id"))
-        )
+        # Build unread-counts map (receiver==me, unread only)
+        unread_rows = (DirectMessage.objects
+                       .filter(receiver=me, is_read=False)
+                       .values("sender_id")
+                       .annotate(c=Count("id")))
         unread_by_peer = {str(r["sender_id"]): r["c"] for r in unread_rows}
 
-        # Build a "peer_id" for each message relative to me
-        base = (
-            DirectMessage.objects
-            .filter(Q(sender=me) | Q(receiver=me))
-            .annotate(peer_id=Case(
-                When(sender_id=me.id, then=F("receiver_id")),
-                default=F("sender_id"),
-                output_field=models.UUIDField(),
-            ))
-        )
+        # Base messages annotated with the 'peer_id' relative to me
+        base = (DirectMessage.objects
+                .filter(Q(sender=me) | Q(receiver=me))
+                .annotate(peer_id=Case(
+                    When(sender_id=me.id, then=F("receiver_id")),
+                    default=F("sender_id"),
+                    output_field=models.UUIDField(),
+                )))
 
-        # For each peer, find the id of the latest message (subquery)
-        last_msg_id_sq = (
-            DirectMessage.objects
-            .filter(
-                Q(sender=me, receiver_id=OuterRef("peer_id")) |
-                Q(sender_id=OuterRef("peer_id"), receiver=me)
-            )
-            .order_by("-created_at")
-            .values("id")[:1]
-        )
+        # For each peer, id of the latest message
+        last_msg_id_sq = (DirectMessage.objects
+                          .filter(Q(sender=me, receiver_id=OuterRef("peer_id")) |
+                                  Q(sender_id=OuterRef("peer_id"), receiver=me))
+                          .order_by("-created_at")
+                          .values("id")[:1])
 
-        # Get the peers ordered by last message time (desc)
-        peers = (
-            base.values("peer_id")
-            .annotate(last_created=Max("created_at"),
-                      last_msg_id=Subquery(last_msg_id_sq))
-            .order_by("-last_created")[:limit]
-        )
+        # Queryset of peers ordered by last activity (drives pagination)
+        peers_qs = (base.values("peer_id")
+                         .annotate(last_created=Max("created_at"),
+                                   last_msg_id=Subquery(last_msg_id_sq))
+                         .order_by("-last_created"))
 
-        # Fetch the last message rows in one query
-        last_ids = [p["last_msg_id"] for p in peers if p["last_msg_id"]]
-        msgs = (
-            DirectMessage.objects
-            .filter(id__in=last_ids)
-            .select_related("sender", "receiver")
-            .order_by("-created_at")
-        )
+        paginator = Pagination()
+        peers_page = paginator.paginate_queryset(peers_qs, request, view=self)
 
-        # Build response rows
+        # Fetch last messages just for this page
+        last_ids = [p["last_msg_id"] for p in peers_page if p["last_msg_id"]]
+        msgs = (DirectMessage.objects
+                .filter(id__in=last_ids)
+                .select_related("sender", "receiver")
+                .order_by("-created_at"))
+
         order = (request.query_params.get("order") or "desc").lower()
-        out = []
+
+        rows = []
         for m in msgs:
-            # Determine the counterpart (peer) relative to me
+            # Determine counterpart (peer) relative to me
             peer = m.receiver if m.sender_id == me.id else m.sender
-            # avatar absolute URL if available
             avatar = None
             if getattr(peer, "avatar", None):
                 try:
                     avatar = request.build_absolute_uri(peer.avatar.url)
                 except Exception:
                     avatar = None
-            out.append({
-                "peer": {"id": str(peer.id), "full_name": getattr(peer, "full_name", peer.username), "avatar": avatar},
+            rows.append({
+                "peer": {"id": str(peer.id),
+                         "full_name": getattr(peer, "full_name", peer.username),
+                         "avatar": avatar},
                 "last_message": DirectMessageOutSer(m).data,
                 "unread_count": unread_by_peer.get(str(peer.id), 0),
             })
 
-        # Keep chats in descending recency by default; allow asc if requested
         if order == "asc":
-            out = list(reversed(out))
+            rows = list(reversed(rows))
 
-        return Response(ChatListItemSer(out, many=True).data, status=status.HTTP_200_OK)
+        return paginator.get_paginated_response(ChatListItemSer(rows, many=True).data)
+    
+    
+class ThreadAV(APIView):
+    schema = TaggedAutoSchema(tags=["User DM"])
+    permission_classes = [permissions.IsAuthenticated]
+
+    @extend_schema(
+        tags=["User DM"],
+        parameters=[
+            OpenApiParameter("peer", str, OpenApiParameter.QUERY, required=True,
+                             description="UUID of the other participant"),
+            OpenApiParameter("page", int, OpenApiParameter.QUERY, required=False,
+                             description="Page number (1-based)"),
+            OpenApiParameter("page_size", int, OpenApiParameter.QUERY, required=False,
+                             description="Items per page"),
+            OpenApiParameter("order", str, OpenApiParameter.QUERY, required=False,
+                             description="asc | desc (default: asc, good for chat UIs)"),
+        ],
+        responses={200: ConversationMessageSer(many=True)},
+        summary="Get a single DM thread (me <-> peer), paginated, with 'direction' flags."
+    )
+    def get(self, request):
+        peer = request.query_params.get("peer")
+        if not peer:
+            return Response({"detail": "query param 'peer' is required."}, status=400)
+
+        # Optional: validate peer exists (keeps errors cleaner for FE)
+        if not User.objects.filter(id=peer, is_active=True).exists():
+            return Response({"detail": "Peer not found or inactive."}, status=404)
+
+        order = (request.query_params.get("order") or "asc").lower()
+        ascending = order == "asc"
+
+        qs = (
+            DirectMessage.objects
+            .filter(
+                Q(sender=request.user, receiver_id=peer) |
+                Q(sender_id=peer, receiver=request.user)
+            )
+            .order_by("created_at" if ascending else "-created_at")
+        )
+
+        paginator = Pagination()
+        page = paginator.paginate_queryset(qs, request, view=self)
+        data = ConversationMessageSer(page, many=True, context={"request": request}).data
+        return paginator.get_paginated_response(data)
+    
+class ThreadsMultiAV(APIView):
+    """
+    GET /api/account/messages/threads/
+    - Returns a paginated list of conversations (one item per peer).
+    - Each item includes the peer UUID and a (limited) slice of messages with 'direction' flags.
+    - If ?user=<uuid> is provided, shows conversations for that user (self or admin only).
+      Otherwise, uses the authenticated user.
+    """
+    schema = TaggedAutoSchema(tags=["User DM"])
+    permission_classes = [permissions.IsAuthenticated]
+
+    def _is_admin(self, user) -> bool:
+        # mirror existing admin checks used elsewhere in this module
+        return bool(getattr(user, "role", None) == 0 or user.is_staff or user.is_superuser)
+
+    @extend_schema(
+        tags=["User DM"],
+        parameters=[
+            OpenApiParameter("user", str, OpenApiParameter.QUERY, required=False,
+                             description="Target user UUID (optional). If omitted, uses the authenticated user."),
+            OpenApiParameter("page", int, OpenApiParameter.QUERY, required=False,
+                             description="Page number (1-based) over peers"),
+            OpenApiParameter("page_size", int, OpenApiParameter.QUERY, required=False,
+                             description="Number of peers (conversations) per page"),
+            OpenApiParameter("per_peer_limit", int, OpenApiParameter.QUERY, required=False,
+                             description="Number of messages returned per conversation (default 30, max 100)"),
+            OpenApiParameter("order", str, OpenApiParameter.QUERY, required=False,
+                             description="Message order inside each conversation: asc | desc (default asc)"),
+        ],
+        description="Telegram-like conversations page. Returns conversations grouped by peer with a small message slice.",
+    )
+    def get(self, request):
+        # 1) resolve target user
+        target_id = request.query_params.get("user") or str(request.user.id)
+        target = User.objects.filter(id=target_id, is_active=True).first()
+        if not target:
+            return Response({"detail": "کاربر هدف یافت نشد."}, status=status.HTTP_404_NOT_FOUND)
+        if target.id != request.user.id and not self._is_admin(request.user):
+            return Response({"detail": "اجازه دسترسی ندارید."}, status=status.HTTP_403_FORBIDDEN)
+
+        # 2) params
+        try:
+            per_peer_limit = int(request.query_params.get("per_peer_limit") or 30)
+        except ValueError:
+            per_peer_limit = 30
+        per_peer_limit = max(1, min(per_peer_limit, 100))
+
+        order = (request.query_params.get("order") or "asc").lower()
+        ascending = order == "asc"
+
+        # 3) peers ordered by last activity (same pattern as ChatsAV)
+        me_qs = (DirectMessage.objects
+                 .filter(Q(sender_id=target.id) | Q(receiver_id=target.id))
+                 .annotate(peer_id=Case(
+                     When(sender_id=target.id, then=F("receiver_id")),
+                     default=F("sender_id"),
+                     output_field=models.UUIDField(),
+                 )))
+
+        last_msg_id_sq = (DirectMessage.objects
+                          .filter(Q(sender_id=target.id, receiver_id=OuterRef("peer_id")) |
+                                  Q(sender_id=OuterRef("peer_id"), receiver_id=target.id))
+                          .order_by("-created_at")
+                          .values("id")[:1])
+
+        peers_qs = (me_qs.values("peer_id")
+                        .annotate(last_created=Max("created_at"),
+                                  last_msg_id=Subquery(last_msg_id_sq))
+                        .order_by("-last_created"))
+
+        paginator = Pagination()
+        peers_page = paginator.paginate_queryset(peers_qs, request, view=self)
+
+        # 4) build results per peer
+        results = []
+        for row in peers_page:
+            peer_uuid = row["peer_id"]
+
+            # slice of messages between target and this peer
+            m_qs = (DirectMessage.objects
+                    .filter(Q(sender_id=target.id, receiver_id=peer_uuid) |
+                            Q(sender_id=peer_uuid, receiver_id=target.id))
+                    .order_by("created_at" if ascending else "-created_at")[:per_peer_limit])
+
+            # use our minimal serializer with viewer_id for correct direction
+            chats = ConversationMessageMiniSer(
+                m_qs, many=True, context={"viewer_id": target.id}
+            ).data
+
+            results.append({
+                "peer_uuid": str(peer_uuid),
+                "chats": chats,
+            })
+
+        return paginator.get_paginated_response(results)

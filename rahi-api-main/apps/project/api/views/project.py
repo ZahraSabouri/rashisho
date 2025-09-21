@@ -112,6 +112,12 @@ class ProjectViewSet(ModelViewSet):
 
         return Response(response_data)
 
+    @extend_schema(
+        tags=["Projects"],  # redundant but explicit
+        operation_id="project_attractiveness_retrieve",
+        # summary="Get project's attractiveness (like count) and my status",
+        description="Returns {'project_id','attractiveness','user_selected'}. Public.",
+    )
     @action(detail=True, methods=["get"], url_path="attractiveness", permission_classes=[AllowAny])
     def attractiveness(self, request, pk=None):
         from apps.project.services import can_show_attractiveness, count_project_attractiveness
@@ -134,6 +140,12 @@ class ProjectViewSet(ModelViewSet):
             "user_selected": user_selected
         })
 
+    @extend_schema(
+        tags=["Projects"],
+        operation_id="project_attractiveness_toggle",
+        # summary="Toggle my attractiveness (like) for this project",
+        description="Authenticated. Locked when selection phase ends. Returns updated count & status.",
+    )
     @action(detail=True, methods=["post"], url_path="attractiveness/toggle", permission_classes=[IsAuthenticated])
     def toggle_attractiveness(self, request, pk=None):
         from apps.project.models import ProjectAttractiveness

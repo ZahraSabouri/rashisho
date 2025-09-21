@@ -39,3 +39,32 @@ class ChatListItemSer(serializers.Serializer):
     peer = serializers.DictField()          # {id, full_name, avatar}
     last_message = DirectMessageOutSer()
     unread_count = serializers.IntegerField()
+
+class ConversationMessageSer(DirectMessageOutSer):
+    """
+    Adds a chat-friendly direction flag:
+      - 'sent'     => message.sender == request.user
+      - 'received' => message.receiver == request.user
+    """
+    direction = serializers.SerializerMethodField()
+
+    class Meta(DirectMessageOutSer.Meta):
+        # keep original DM fields and append 'direction'
+        fields = DirectMessageOutSer.Meta.fields + ["direction"]
+
+    def get_direction(self, obj: DirectMessage) -> str:
+        req = self.context.get("request")
+        me_id = getattr(getattr(req, "user", None), "id", None)
+        return "sent" if obj.sender_id == me_id else "received"
+    
+
+class ConversationMessageMiniSer(serializers.ModelSerializer):
+    direction = serializers.SerializerMethodField()
+
+    class Meta:
+        model = DirectMessage
+        fields = ["body", "is_read", "created_at", "direction"]
+
+    def get_direction(self, obj: DirectMessage) -> str:
+        viewer_id = self.context.get("viewer_id")
+        return "sent" if obj.sender_id == viewer_id else "received"
