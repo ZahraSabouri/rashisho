@@ -46,3 +46,20 @@ class PostSerializer(serializers.ModelSerializer):
         # lightweight project chip display (id/title) for FE
         rep["related_projects"] = [{"id": str(p.id), "title": p.title} for p in instance.related_projects.all()]
         return rep
+
+
+class PostImageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PostImage
+        fields = ["id", "image", "created_at", "updated_at"]
+
+    def validate(self, attrs):
+        post = self.context.get("post")
+        if post and post.images.count() >= 10:
+            raise serializers.ValidationError({"image": "حداکثر ۱۰ تصویر مجاز است."})
+        return attrs
+
+    def to_representation(self, instance):
+        rep = super().to_representation(instance)
+        rep["image"] = instance.image.url if instance.image else None
+        return rep

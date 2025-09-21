@@ -33,12 +33,27 @@ def validate_ticket_file(value):
         raise ValidationError("نوع فایل غیرمجاز است.")
 
 
-class Announcement(BaseModel):  # Previously Notification
+class Announcement(BaseModel):
     title = models.CharField(max_length=255, verbose_name="عنوان")
     description = models.TextField(verbose_name="توضیحات")
     image = models.ImageField(upload_to="announcements/images", verbose_name="تصویر")
     is_active = models.BooleanField(default=False, verbose_name="فعال؟")
     target_users = models.ManyToManyField(settings.AUTH_USER_MODEL, blank=True, verbose_name="کاربران هدف")
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="announcements_created",
+        verbose_name="ایجادکننده"
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="notifications_created",
+        verbose_name="ایجادکننده"
+    )
+
 
     class Meta(BaseModel.Meta):
         verbose_name = "اعلان"
@@ -51,6 +66,7 @@ class Announcement(BaseModel):  # Previously Notification
         if not self.target_users.exists():
             return True  # No specific targeting = show to all users
         return self.target_users.filter(id=user.id).exists()
+    
 
 
 class AnnouncementReceipt(BaseModel):  # Previously NotificationReceipt

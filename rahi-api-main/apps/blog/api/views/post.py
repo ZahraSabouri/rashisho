@@ -4,6 +4,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet, GenericViewSet
 from drf_spectacular.utils import extend_schema, OpenApiResponse
+from rest_framework.parsers import MultiPartParser, FormParser
 
 from apps.api.permissions import IsAdminOrReadOnlyPermission  # house perm
 from apps.api.schema import TaggedAutoSchema
@@ -15,6 +16,7 @@ class PostViewSet(ModelViewSet):
     queryset = Post.objects.all().order_by("-created_at")
     serializer_class = PostSerializer
     permission_classes = [IsAdminOrReadOnlyPermission]  # read for all, write admin only
+    parser_classes = (MultiPartParser, FormParser)
     ordering_fields = ["created_at", "updated_at", "title"]
 
 class PostImageViewSet(

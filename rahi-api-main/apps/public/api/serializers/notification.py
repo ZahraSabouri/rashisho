@@ -9,18 +9,14 @@ from apps.public.models import Announcement, UserNotification, AnnouncementRecei
 User = get_user_model()
 
 
-# ================================
-# اعلانات (Announcements) Serializers
-# ================================
-
 class AnnouncementSerializer(ModelSerializer):
-    """Serializer for اعلانات CRUD (admin use)"""
     target_users = serializers.PrimaryKeyRelatedField(
         queryset=User.objects.all(), 
         many=True, 
         required=False,
         help_text="خالی = برای همه کاربران"
     )
+    created_by = serializers.PrimaryKeyRelatedField(read_only=True)
 
     class Meta:
         model = Announcement
@@ -31,16 +27,23 @@ class AnnouncementSerializer(ModelSerializer):
         if rep.get("image"):
             rep["image"] = instance.image.url
         return rep
+    
+    def create(self, validated_data):
+        # fallback in case ViewSet.perform_create isn't used
+        request = self.context.get("request")
+        if request and request.user and request.user.is_authenticated:
+            validated_data.setdefault("created_by", request.user)
+        return super().create(validated_data)
 
 
 class AnnouncementOutSerializer(AnnouncementSerializer):
-    """Serializer for اعلانات with user state (for /active/ endpoint)"""
     user_state = serializers.SerializerMethodField(read_only=True)
+    created_by = serializers.PrimaryKeyRelatedField(read_only=True)
 
     class Meta(AnnouncementSerializer.Meta):
         # fields = AnnouncementSerializer.Meta.fields + ["user_state"]
         fields = ["id", "title", "description", "image", "is_active", "target_users", 
-                 "created_at", "updated_at", "user_state"]
+                 "created_at", "updated_at", "user_state", "created_by"]
 
     def get_user_state(self, obj):
         request = self.context.get("request") if hasattr(self, "context") else None
@@ -59,9 +62,12 @@ class AnnouncementOutSerializer(AnnouncementSerializer):
             state["snoozed_until"] = receipt.snoozed_until
         return state
 
+    def to_representation(self, instance):
+        rep = super().to_representation(instance)
+        rep["image"] = instance.image.url if instance.image else None   # like Project/Blog
+        return rep
 
 class SnoozeSer(Serializer):
-    """Serializer for snoozing اعلانات ("Remind later")"""
     minutes = serializers.IntegerField(min_value=1, default=1440)  # 24h default
 
 
@@ -70,7 +76,6 @@ class SnoozeSer(Serializer):
 # ================================
 
 class UserNotificationSerializer(ModelSerializer):
-    """Serializer for آگهی creation (admin use)"""
     target_users = serializers.PrimaryKeyRelatedField(
         queryset=User.objects.all(),
         many=True,
@@ -78,11 +83,22 @@ class UserNotificationSerializer(ModelSerializer):
         write_only=True,
         help_text="خالی = برای همه کاربران"
     )
+    created_by = serializers.PrimaryKeyRelatedField(read_only=True)
+
+    # class Meta:
+    #     model = UserNotification
+    #     fields = ["id", "title", "body", "kind", "payload", "url", "target_users"]
+    #     read_only_fields = ["id"]
 
     class Meta:
         model = UserNotification
-        fields = ["id", "title", "body", "kind", "payload", "url", "target_users"]
-        read_only_fields = ["id"]
+        fields = "__all__"
+
+    def create(self, validated_data):
+        request = self.context.get("request")
+        if request and request.user and request.user.is_authenticated:
+            validated_data.setdefault("created_by", request.user)
+        return super().create(validated_data)
 
     def validate(self, attrs):
         # Remove target_users from attrs as it's handled in the view
@@ -92,15 +108,18 @@ class UserNotificationSerializer(ModelSerializer):
 
 
 class UserNotificationOutSerializer(ModelSerializer):
-    """Serializer for آگهی output (user consumption)"""
+    created_by = serializers.UUIDField(source="created_by_id", allow_null=True, read_only=True)
+
     class Meta:
         model = UserNotification
-        fields = ["id", "kind", "title", "body", "url", "is_read", "created_at", "read_at"]
-        read_only_fields = fields
+        fields = [
+            "id", "kind", "title", "body", "url",
+            "is_read", "created_at", "read_at",
+            "created_by",
+        ]
 
 
 class MarkReadSer(Serializer):
-    """Serializer for marking آگهی as read (batch operation)"""
     ids = ListField(child=UUIDField(), min_length=1, max_length=200)
 
 

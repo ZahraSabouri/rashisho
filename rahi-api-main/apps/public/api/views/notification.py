@@ -5,6 +5,7 @@ from django.db.models import Q
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.parsers import MultiPartParser, FormParser
 from drf_spectacular.utils import extend_schema, OpenApiResponse, OpenApiParameter
 
 from apps.api.permissions import IsAdminOrReadOnlyPermission
@@ -29,6 +30,31 @@ class AnnouncementViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAdminOrReadOnlyPermission]
     ordering_fields = "__all__"
     pagination_class = Pagination
+    parser_classes = (MultiPartParser, FormParser)
+
+    def perform_create(self, serializer):
+        # creator = self.request.user if self.request.user.is_authenticated else None
+        serializer.save(created_by=self.request.user)
+
+    @extend_schema(
+        tags=["Announcements"],
+        parameters=[
+            OpenApiParameter("ids", str, OpenApiParameter.QUERY,
+                             description="Comma-separated creator UUIDs"),
+        ],
+        description="Admin: list announcements created by any of the given creator UUIDs.",
+    )
+    @action(methods=["get"], detail=False, url_path="by-creators",
+            permission_classes=[permissions.IsAdminUser])
+    def by_creators(self, request):
+        ids = request.query_params.getlist("creator_ids") or request.query_params.getlist("creators")
+        if len(ids) == 1 and "," in ids[0]:
+            ids = [x.strip() for x in ids[0].split(",") if x.strip()]
+        qs = self.get_queryset().filter(created_by_id__in=ids) if ids else self.get_queryset()
+        page = self.paginate_queryset(qs)
+        ser = self.get_serializer(page or qs, many=True)
+        return self.get_paginated_response(ser.data) if page is not None else Response(ser.data, status=200)
+
 
     @extend_schema(
         tags=["Announcements"],
@@ -96,7 +122,6 @@ class AnnouncementViewSet(viewsets.ModelViewSet):
         return Response({"results": [], "count": 0})
 
     def create(self, request, *args, **kwargs):
-        """Admin can create announcements for specific users or all users"""
         if not request.user.is_staff:
             return Response({"detail": "فقط ادمین می‌تواند اعلان ایجاد کند."}, 
                         status=status.HTTP_403_FORBIDDEN)
@@ -203,21 +228,49 @@ class AnnouncementViewSet(viewsets.ModelViewSet):
 
 
 class NotificationViewSet(viewsets.ModelViewSet):
-    """
-    آگهی (Notifications) - ViewSet for managing user notifications.
-    Supports read/unread, paginated lists, admin creation for specific/all users.
-    """
     schema = TaggedAutoSchema(tags=["Notifications"])
     serializer_class = UserNotificationSerializer
     permission_classes = [permissions.IsAuthenticated]
     pagination_class = Pagination
+    parser_classes = (MultiPartParser, FormParser)
 
     def get_queryset(self):
-        """Regular users see only their notifications"""
-        if getattr(self, 'action', None) in ['admin_all', 'admin_user_notifications']:
-            # Admin actions use different querysets
+        if getattr(self, "action", None) in ["admin_all", "admin_user_notifications", "by_creators"]:
             return UserNotification.objects.all()
-        return UserNotification.objects.filter(user=self.request.user).order_by('-created_at')
+        return UserNotification.objects.filter(user=self.request.user).order_by("-created_at")
+
+    def get_serializer_class(self):
+        return UserNotificationSerializer if self.action == "create" else UserNotificationOutSerializer
+
+    def get_permissions(self):
+        if self.action in ["create", "admin_all", "admin_user_notifications", "by_creators"]:
+            return [permissions.IsAdminUser()]
+        return [permissions.IsAuthenticated()]
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
+
+    @extend_schema(
+        tags=["Notifications"],
+        parameters=[
+            OpenApiParameter("ids", str, OpenApiParameter.QUERY,
+                             description="Comma-separated creator UUIDs"),
+        ],
+        description="Admin: list notifications created by any of the given creator UUIDs.",
+    )
+    @action(methods=["get"], detail=False, url_path="by-creators",
+            permission_classes=[permissions.IsAdminUser])
+    def by_creators(self, request):
+        ids = request.query_params.getlist("creator_ids") or request.query_params.getlist("creators")
+        if len(ids) == 1 and "," in ids[0]:
+            ids = [x.strip() for x in ids[0].split(",") if x.strip()]
+        qs = UserNotification.objects.all().order_by("-created_at")
+        if ids:
+            qs = qs.filter(created_by_id__in=ids)
+
+        page = self.paginate_queryset(qs)
+        ser = UserNotificationOutSerializer(page or qs, many=True)
+        return self.get_paginated_response(ser.data) if page is not None else Response(ser.data, status=200)
 
     def get_serializer_class(self):
         if self.action == 'create':
@@ -225,7 +278,6 @@ class NotificationViewSet(viewsets.ModelViewSet):
         return UserNotificationOutSerializer
 
     def get_permissions(self):
-        """Admin creation, user consumption"""
         if self.action == 'create':
             return [permissions.IsAdminUser()]
         if self.action in ['admin_all', 'admin_user_notifications']:
@@ -241,7 +293,6 @@ class NotificationViewSet(viewsets.ModelViewSet):
     )
     @action(methods=["get"], detail=False, url_path="admin/all", permission_classes=[permissions.IsAdminUser])
     def admin_all(self, request):
-        """Admin: Get all notifications with pagination"""
         user_id = request.query_params.get('user_id')
         
         queryset = UserNotification.objects.select_related('user').order_by('-created_at')
@@ -282,7 +333,6 @@ class NotificationViewSet(viewsets.ModelViewSet):
     )
     @action(methods=["get"], detail=False, url_path="admin/user", permission_classes=[permissions.IsAdminUser])
     def admin_user_notifications(self, request):
-        """Admin: Get all notifications for specific user"""
         user_id = request.query_params.get('user_id')
         if not user_id:
             return Response({"detail": "پارامتر user_id الزامی است."}, status=status.HTTP_400_BAD_REQUEST)
@@ -309,7 +359,6 @@ class NotificationViewSet(viewsets.ModelViewSet):
         return Response({"results": [], "count": 0})
 
     def create(self, request, *args, **kwargs):
-        """Admin can create notifications for specific users or all users"""
         if not request.user.is_staff:
             return Response({"detail": "فقط ادمین می‌تواند آگهی ایجاد کند."}, 
                         status=status.HTTP_403_FORBIDDEN)
@@ -332,6 +381,7 @@ class NotificationViewSet(viewsets.ModelViewSet):
                     kind=serializer.validated_data.get('kind', 'info'),
                     payload=serializer.validated_data.get('payload', {}),
                     url=serializer.validated_data.get('url', ''),
+                    created_by=request.user,
                 )
                 created_count += 1
             message = f"آگهی برای {created_count} کاربر ایجاد شد."
@@ -347,6 +397,7 @@ class NotificationViewSet(viewsets.ModelViewSet):
                     kind=serializer.validated_data.get('kind', 'info'),
                     payload=serializer.validated_data.get('payload', {}),
                     url=serializer.validated_data.get('url', ''),
+                    created_by=request.user,
                 )
                 created_count += 1
             message = f"آگهی برای همه کاربران ({created_count} نفر) ایجاد شد."
@@ -371,7 +422,6 @@ class NotificationViewSet(viewsets.ModelViewSet):
     )
     @action(methods=["get"], detail=False, url_path="unread-count", permission_classes=[permissions.IsAuthenticated])
     def unread_count(self, request):
-        """Get unread notifications count"""
         count = self.get_queryset().filter(is_read=False).count()
         return Response({"unread_count": count}, status=status.HTTP_200_OK)
 
@@ -383,7 +433,6 @@ class NotificationViewSet(viewsets.ModelViewSet):
     )
     @action(methods=["post"], detail=False, url_path="mark-read", permission_classes=[permissions.IsAuthenticated])
     def mark_read(self, request):
-        """Mark notifications as read (batch operation)"""
         serializer = MarkReadSer(data=request.data)
         serializer.is_valid(raise_exception=True)
         ids = serializer.validated_data["ids"]

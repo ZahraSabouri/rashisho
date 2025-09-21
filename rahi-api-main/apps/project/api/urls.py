@@ -52,6 +52,7 @@ router.register(r'team-discovery', TeamDiscoveryViewSet, basename='team-discover
 
 
 urlpatterns = [
+    path("", include(router.urls)),
     # path("my-team/", team.MyTeamAPV.as_view(), name="my-team"),
     # path("team-info/", team.TeamInfoAPV.as_view(), name="team-info"),
     path("priority-report/", reports.ProjectPriorityReportAPV.as_view(), name="priority-report"),
